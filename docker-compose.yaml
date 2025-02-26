@@ -1,0 +1,12 @@
+version: '3.5'
+
+services:
+  postgres:
+    image: bitnami/postgresql:14
+    ports:
+      - 5401:5432
+    env_file:
+      - .env
+    restart: always
+    volumes:
+      - ~/db/postgres:/var/lib/postgresql/data
