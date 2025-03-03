@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
+import jsonwebtoken from "jsonwebtoken";
 
-export default function authenticateToken(req, res, next) {
+export default function authenticateToken(req: any, res: any, next: any) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.replace('Bearer ', '');
 
@@ -13,7 +13,7 @@ export default function authenticateToken(req, res, next) {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jsonwebtoken.verify(token, process.env.JWT_SECRET || "secret");
         req.user = decoded;
         next();
     } catch (err) {
