@@ -1,11 +1,6 @@
 import fs from "fs";
-import { create } from "ipfs-http-client";
 import multer from "multer";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 
 const storage = multer.diskStorage({
@@ -25,7 +20,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // Configure IPFS client
-const initIPFSClient = () => {
+const initIPFSClient = (create: any) => {
   // Connect to the IPFS API
   const ipfs = create({
     host: process.env.IPFS_HOST || 'localhost',
@@ -53,8 +48,10 @@ async function uploadDocument(req: any, res: any) {
         return res.status(400).json({ error: 'No file provided' });
       }
 
+      const { create } = await import("ipfs-http-client");
+
       // Initialize IPFS client
-      const ipfs = initIPFSClient();
+      const ipfs = initIPFSClient(create);
       
       try {
         // Read the file from disk
