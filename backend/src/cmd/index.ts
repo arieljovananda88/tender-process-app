@@ -4,10 +4,12 @@ dotenv.config();
 
 const app = express()
 
-import {uploadDocumentRouter} from '../module/upload-documents/routes.js'
+import {uploadDocumentRouter} from '../module/upload-documents/routes'
+import {walletRouter} from '../module/wallet/routes'
 
 app.use(express.json())
 app.use('/upload-document', uploadDocumentRouter.ipfsRouter)
+app.use('/wallet', walletRouter.router)
 
 // app.use(authenticateToken)
 
