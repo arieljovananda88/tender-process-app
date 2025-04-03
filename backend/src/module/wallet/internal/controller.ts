@@ -11,6 +11,7 @@ async function createWallet(req: Request, res: Response) {
       success: true,
       message: "Wallet created successfully",
       address: wallet.address,
+      publicKey: wallet.publicKey,
       privateKey: wallet.privateKey, 
       mnemonic: wallet.mnemonic?.phrase, 
       network: "Sepolia Testnet"
