@@ -1,17 +1,17 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-    const PublicKeyStorage = await ethers.getContractFactory("PublicKeyStorage")
+    const Contract = await ethers.getContractFactory("DocumentStore")
 
     console.log("Deploying DocumentStore with dummy values...");
     
-    const publicKeyStorage = await PublicKeyStorage.deploy();
+    const contract = await Contract.deploy("0x80b2BB2eD3fb0A1950256Cf40533E751059D33aF");
 
-    console.log("smart contract address: ", publicKeyStorage.address)
+    console.log("smart contract address: ", contract.address)
 
-    await publicKeyStorage.deployed();
+    await contract.deployed();
     
-    console.log("publicKeyStorage deployed to:", publicKeyStorage.address);
+    console.log("contract deployed to:", contract.address);
 
 }
 

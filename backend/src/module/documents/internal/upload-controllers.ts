@@ -1,49 +1,28 @@
 import fs from "fs";
-import multer from "multer";
-import path from "path";
+import { ethers } from "ethers";
+import { encrypt } from "eciesjs";
+import { initIPFSClient, handleFileUpload } from "./commons";
+import { getDocumentStoreContractInstance, getPublicKeyStoregeContractInstance } from "../../../commons/contract-clients";
 
 
-const storage = multer.diskStorage({
-  destination: function (req: any, file: any, cb: any) {
-    const uploadDir = path.join(__dirname, "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req: any, file: any, cb: any) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ storage: storage });
-
-// Configure IPFS client
-const initIPFSClient = (create: any) => {
-  // Connect to the IPFS API
-  const ipfs = create({
-    host: process.env.IPFS_HOST || 'localhost',
-    port: Number(process.env.IPFS_PORT) || 5051,
-    protocol: process.env.IPFS_PROTOCOL || 'http'
-  });
-  return ipfs;
-};
-
-// Middleware to handle file upload
-const handleFileUpload = upload.single('document');
 
 // Function to upload document to IPFS
 async function uploadDocument(req: any, res: any) {
+  const documentStoreContract = getDocumentStoreContractInstance()
+  const publicKeyStorageContract = getPublicKeyStoregeContractInstance()
+  
   try {
     // Use the multer middleware first
     handleFileUpload(req, res, async function(err: any) {
+      const fileName = req.body.file_name;
+      const address = req.body.address;
+
+      
       if (err) {
         console.error('Error uploading file:', err);
         return res.status(400).json({ error: 'File upload failed' });
       }
 
-      // Check if a file was provided
       if (!req.file) {
         return res.status(400).json({ error: 'No file provided' });
       }
@@ -52,6 +31,8 @@ async function uploadDocument(req: any, res: any) {
 
       // Initialize IPFS client
       const ipfs = initIPFSClient(create);
+
+      
       
       try {
         // Read the file from disk
@@ -69,6 +50,26 @@ async function uploadDocument(req: any, res: any) {
         
         // Clean up the temporary file
         fs.unlinkSync(req.file.path);
+
+        const publicKeyInContract = await publicKeyStorageContract.getPublicKey(address);
+        if (!publicKeyInContract) {
+            return res.status(400).json({ error: "address doesnt exist in the app" });
+        }
+
+        const encryptedCid = await handleEncrypt(publicKeyInContract, result.cid.toString());
+
+        if (!encryptedCid) {
+          return res.status(500).json({ error: "Failed to encrypt CID" });
+        }
+        
+        const tx = await documentStoreContract.uploadDocument(
+          ethers.utils.formatBytes32String("1"),
+          address,
+          encryptedCid,
+          fileName
+        );
+        
+        await tx.wait();
         
         // Return success response
         return res.status(200).json({
@@ -95,6 +96,26 @@ async function uploadDocument(req: any, res: any) {
     res.status(500).json({ error: 'Internal Server Error', details: error.message });
   }
 }
+
+function extractRawPublicKey(asn1Hex: string) {
+  const hex = asn1Hex.replace(/^0x/, '');
+  const match = hex.match(/04([0-9a-fA-F]{128})(?:[^0-9a-fA-F]|$)/);
+  if (match) {
+    return Buffer.from('04' + match[1], 'hex');
+  }
+
+  throw new Error('Unable to extract a valid EC point from the public key');
+}
+
+const handleEncrypt = async (publicKey: string, cid: string) => {
+  try {
+    const rawPublicKey = extractRawPublicKey(publicKey);
+    const encrypted = encrypt(rawPublicKey, Buffer.from(cid));
+    return (encrypted.toString("hex"))
+  } catch (error) {
+    console.error("Encryption error:", error);
+  }
+};
 
 export const uploadDocumentController = {
   uploadDocument

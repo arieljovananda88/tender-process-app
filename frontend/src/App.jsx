@@ -20,11 +20,12 @@ function App() {
   const [decryptedMessage, setDecryptedMessage] = useState("");
   const [recoveredPublicKey, setRecoveredPublicKey] = useState("");
   const [registerStatus, setRegisterStatus] = useState("");
+  const [myPublicKey, setMyPublicKey] = useState("");
+  const [myPrivateKey, setMyPrivateKey] = useState("");
 
   // Generate a wallet (this should be done securely)
   const mnemonic = "radar theory exit spare dog stay between series render decrease gorilla draft";
   const walletMnemonic = Wallet.fromMnemonic(mnemonic);
-  const walletPrivate = new Wallet(walletMnemonic.privateKey);
 
   useEffect(() => {
     if (isConnected) {
@@ -57,21 +58,43 @@ function App() {
     }
   };
 
+  function extractRawPublicKey(asn1Hex) {
+    const hex = asn1Hex.replace(/^0x/, '');
+    const match = hex.match(/04([0-9a-fA-F]{128})(?:[^0-9a-fA-F]|$)/);
+    if (match) {
+      return Buffer.from('04' + match[1], 'hex');
+    }
+  
+    throw new Error('Unable to extract a valid EC point from the public key');
+  }
+  
+  function extractRawPrivateKey(asn1Hex) {
+    const hex = asn1Hex.replace(/^0x/, '');
+    const privateKeyMarker = hex.indexOf('0201010420');
+    if (privateKeyMarker !== -1) {
+      return Buffer.from(hex.slice(privateKeyMarker + 10, privateKeyMarker + 10 + 64), 'hex');
+    }
+    
+    throw new Error('Invalid private key format');
+  }
+  
+
   const handleEncrypt = async () => {
     try {
-      const publicKey = Buffer.from(recoveredPublicKey.slice(2), "hex");
-      const encrypted = encrypt(publicKey, Buffer.from(message));
+      const rawPublicKey = extractRawPublicKey(myPublicKey);
+      const encrypted = encrypt(rawPublicKey, Buffer.from(message));
       setEncryptedData(encrypted.toString("hex"));
     } catch (error) {
       console.error("Encryption error:", error);
     }
   };
-
+  
+  // Decryption handler
   const handleDecrypt = async () => {
     try {
       const encryptedBuffer = Buffer.from(encryptedData, "hex");
-      const privateKey = Buffer.from(walletMnemonic.privateKey.slice(2), "hex");
-      const decrypted = decrypt(privateKey, encryptedBuffer);
+      const rawPrivateKey = extractRawPrivateKey(myPrivateKey);
+      const decrypted = decrypt(rawPrivateKey, encryptedBuffer);
       setDecryptedMessage(decrypted.toString());
     } catch (error) {
       console.error("Decryption error:", error);
@@ -96,34 +119,55 @@ function App() {
     }
   };
 
-  // Handle Registering the User's Public Key
+  
   const handleRegister = async () => {
-    const env = await import.meta.env;
-    console.log(env)
-    const CONTRACT_ADDRESS = env.VITE_PUBLIC_KEY_STORAGE_CONTRACT_ADDRESS;
+    try {
+      const name = prompt("Enter your name:");
+      const email = prompt("Enter your email:");
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const address = await signer.getAddress();
+  
+      const response = await axios.post('http://localhost:9000/auth/register', {
+        name,
+        email,
+        address,
+      });
+  
+      if (response.data.success) {
+        alert('✅ Registration successful. Now generating your key pair...');
+  
+        const keyPair = await window.crypto.subtle.generateKey(
+          {
+            name: "ECDSA",
+            namedCurve: "P-256",
+          },
+          true,
+          ["sign", "verify"]
+        );
 
-    if (!CONTRACT_ADDRESS) {
-        throw new Error("CONTRACT_ADDRESS is not set in environment variables");
-    }
-      
-    const contractAbi = PublicKeyStorageABI.abi;
-      
-    const provider = new ethers.providers.Web3Provider(web3.currentProvider);
+        const publicKeyHex = response.data.publicKey;
+        const privateKeyHex = response.data.privateKey;
 
-    const signer = provider.getSigner();
-    const publicKeyStorageContract = new ethers.Contract(CONTRACT_ADDRESS, contractAbi, signer)
-    
-    try{
-        const publicKeyInContract = await publicKeyStorageContract.getPublicKey(address)
-        if (publicKeyInContract) {
-          setRegisterStatus("already registered for wallet address")
-        }
-        await publicKeyStorageContract.storePublicKey(recoveredPublicKey)
-        setRegisterStatus("register successful") 
-    }catch(error){
-      setRegisterStatus(`register failed: ${error}`) 
+        setMyPublicKey(publicKeyHex);
+        setMyPrivateKey(privateKeyHex);
+
+      
+        alert(
+          `Save your keys securely!\n\nPublic Key:\n${publicKeyHex}\n\nPrivate Key:\n${privateKeyHex}`
+        );
+  
+      } else {
+        alert('⚠️ Registration failed: ' + response.data.error);
+      }
+  
+    } catch (error) {
+      console.error("Registration failed:", error);
+      alert('❌ Registration failed. See console for details.');
     }
   };
+  
+  
 
   return (
     <div className="flex flex-col items-center justify-center h-screen gap-4">

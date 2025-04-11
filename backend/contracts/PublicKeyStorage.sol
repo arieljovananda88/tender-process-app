@@ -2,28 +2,33 @@
 pragma solidity ^0.8.0;
 
 contract PublicKeyStorage {
+    mapping(address => string) private walletToEmail;
+    mapping(address => string) private walletToName;
+    mapping(address => string) private walletToPublicKey;
 
-    // Mapping to store the public key and name for each wallet address
-    mapping(address => string) public walletToPublicKey;
-    mapping(address => string) public walletToName;
+    event PublicKeyStored(address indexed walletAddress, string email, string name, string publicKey);
 
-    // Event to emit when a public key and name are stored for the first time
-    event PublicKeyStored(address indexed walletAddress, string publicKey, string name);
-
-    // Function to store public key, name, and address for the first time login
-    function storePublicKey(address walletAddress, string memory publicKey, string memory name) external {
-        walletToPublicKey[walletAddress] = publicKey;
+    function storeUserInfo(
+        address walletAddress,
+        string memory email,
+        string memory name,
+        string memory publicKey
+    ) external {
+        walletToEmail[walletAddress] = email;
         walletToName[walletAddress] = name;
-        emit PublicKeyStored(walletAddress, publicKey, name);
+        walletToPublicKey[walletAddress] = publicKey;
+        emit PublicKeyStored(walletAddress, email, name, publicKey);
     }
 
-    // Function to get the public key for a wallet address
-    function getPublicKey(address walletAddress) external view returns (string memory) {
-        return walletToPublicKey[walletAddress];
+    function getEmail(address walletAddress) external view returns (string memory) {
+        return walletToEmail[walletAddress];
     }
 
-    // Function to get the name associated with a wallet address
     function getName(address walletAddress) external view returns (string memory) {
         return walletToName[walletAddress];
+    }
+
+    function getPublicKey(address walletAddress) external view returns (string memory) {
+        return walletToPublicKey[walletAddress];
     }
 }
