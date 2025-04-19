@@ -18,10 +18,11 @@ async function register(req: Request, res: Response) {
           return res.status(400).json({ error: "Missing email, address or name" });
       }
 
-      const publicKeyInContract = await publicKeyStorageContract.getPublicKey(address);
-      if (publicKeyInContract) {
-          return res.status(400).json({ error: "Public key has already been registered" });
-      }
+      // const publicKeyInContract = await publicKeyStorageContract.getPublicKey(address);
+      // if (publicKeyInContract) {
+      //     return res.status(400).json({ error: "Public key has already been registered" });
+      // }
+
 
       // Generate key pair
       const { publicKey, privateKey } = generateKeyPairSync('ec', {

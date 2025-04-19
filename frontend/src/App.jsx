@@ -6,6 +6,7 @@ import { Wallet, utils, ethers } from "ethers";
 import { encrypt, decrypt } from "eciesjs";
 import { Buffer } from "buffer";
 import PublicKeyStorageABI from "../../backend/artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json"
+import documentStoreArtifact from "../../backend/artifacts/contracts/DocumentStore.sol/DocumentStore.json"
 
 // Polyfill Buffer for browser environment
 window.Buffer = Buffer;
@@ -21,7 +22,7 @@ function App() {
   const [recoveredPublicKey, setRecoveredPublicKey] = useState("");
   const [registerStatus, setRegisterStatus] = useState("");
   const [myPublicKey, setMyPublicKey] = useState("");
-  const [myPrivateKey, setMyPrivateKey] = useState("");
+  const [myPrivateKey, setMyPrivateKey] = useState("308184020100301006072a8648ce3d020106052b8104000a046d306b020101042068fddc1db4616716f5a3294bdddd363b5f29cb36baff141d185ad080eac7f957a1440342000492ecb5849c783b4590cb89f90076bf19c04aa0d3c9adea2611f1de8afbd3b1b283ac6502dead591d6ee81adb7c7476103ff68e7531f4ffd705a4b1169d0b8efd");
 
   // Generate a wallet (this should be done securely)
   const mnemonic = "radar theory exit spare dog stay between series render decrease gorilla draft";
@@ -92,8 +93,9 @@ function App() {
   // Decryption handler
   const handleDecrypt = async () => {
     try {
-      const encryptedBuffer = Buffer.from(encryptedData, "hex");
+      const encryptedBuffer = Buffer.from("043b4f8fa4469c67b42941c271e682f0078763ef3b401a77e3fdedecd1880e527e79710184aa770baf6a49afd9442451c7be48c5b5dbe08dd3675ccc473eaa7194a10452282e35b47ea2c8d1ee35a4e68e2b4aafa154cac934e92937ee8f7d82fc29087fc0868a3659c67067056bb22d1a88c848211695d2fe41d3a4866e53937fc915f3e4155ee632b36402de7395", "hex");
       const rawPrivateKey = extractRawPrivateKey(myPrivateKey);
+      console.log(rawPrivateKey)
       const decrypted = decrypt(rawPrivateKey, encryptedBuffer);
       setDecryptedMessage(decrypted.toString());
     } catch (error) {
@@ -166,6 +168,60 @@ function App() {
       alert('❌ Registration failed. See console for details.');
     }
   };
+
+  const [myDocuments, setMyDocuments] = useState([]);
+  const [Documents, setDocuments] = useState([]);
+
+const fetchMyDocumentsFromTender2 = async () => {
+  try {
+    if (!address || !isConnected) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+
+    const documentStoreAddress = "0x5d0033744F5Be70fBC2A366358f0Da563175C3c2"; // <-- Replace with your deployed address
+
+    const contract = new ethers.Contract(documentStoreAddress, documentStoreArtifact.abi, signer);
+
+    // Hardcoded tender ID for tender 2 (must be in bytes32 format!)
+    const tenderId = ethers.utils.formatBytes32String("2");
+
+    const docs = await contract.getMyDocuments(tenderId);
+    console.log("Fetched documents:", docs);
+    setMyDocuments(docs);
+  } catch (error) {
+    console.error("Error fetching documents:", error);
+  }
+};
+
+const fetchDocumentsFromTender2 = async () => {
+  try {
+    if (!address || !isConnected) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+
+    const documentStoreAddress = "0x5d0033744F5Be70fBC2A366358f0Da563175C3c2"; // <-- Replace with your deployed address
+
+    const contract = new ethers.Contract(documentStoreAddress, documentStoreArtifact.abi, signer);
+
+    // Hardcoded tender ID for tender 2 (must be in bytes32 format!)
+    const tenderId = ethers.utils.formatBytes32String("2");
+
+    const docs = await contract.getDocumentsOfTenderAsOwner(tenderId, "0x48dbd83Dc991955D21b0B741b66190b0Bc7bbA0f");
+    console.log("Fetched documents:", docs);
+    setDocuments(docs);
+  } catch (error) {
+    console.error("Error fetching documents:", error);
+  }
+};
+
   
   
 
@@ -210,7 +266,34 @@ function App() {
         Decrypt
       </button>
       <p>Decrypted: {decryptedMessage}</p>
+      <h2 className="text-xl font-bold mt-4">My Documents in Tender 2</h2>
+      <button className="bg-indigo-600 text-white px-4 py-2 rounded" onClick={fetchMyDocumentsFromTender2}>
+        Fetch My Documents
+      </button>
+      <ul className="mt-2">
+        {myDocuments.map((doc, i) => (
+          <li key={i} className="border p-2 my-1 rounded shadow">
+            📄 <strong>{doc.documentName}</strong><br />
+            🕒 {new Date(Number(doc.submissionDate) * 1000).toLocaleString()}<br />
+            🔗 CID: {doc.documentCid}
+          </li>
+        ))}
+      </ul>
+      <button className="bg-indigo-600 text-white px-4 py-2 rounded" onClick={fetchDocumentsFromTender2}>
+        Fetch Documents as Owner
+      </button>
+      <ul className="mt-2">
+        {Documents.map((doc, i) => (
+          <li key={i} className="border p-2 my-1 rounded shadow">
+            📄 <strong>{doc.documentName}</strong><br />
+            🕒 {new Date(Number(doc.submissionDate) * 1000).toLocaleString()}<br />
+            🔗 CID: {doc.documentCid}
+          </li>
+        ))}
+      </ul>
     </div>
+
+    
   );
 }
 
