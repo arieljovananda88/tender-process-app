@@ -9,6 +9,7 @@ contract DocumentStore {
     struct Document {
         string documentCid;
         string documentName;
+        string documentType;
         uint256 submissionDate;
     }
 
@@ -22,10 +23,11 @@ contract DocumentStore {
         tenderManager = ITenderManager(tenderManagerAddress);
     }
 
-    function uploadDocument(bytes32 tenderId, address contestant, string memory documentCid, string memory documentName) public {
+    function uploadDocument(bytes32 tenderId, address contestant, string memory documentCid, string memory documentName, string memory documentType) public {
         Document memory newDocument = Document({
             documentCid: documentCid,
             documentName: documentName,
+            documentType: documentType,
             submissionDate: block.timestamp
         });
 

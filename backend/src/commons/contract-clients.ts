@@ -31,20 +31,30 @@ export function getPublicKeyStoregeContractInstance() {
   
   }
 
-  function getSigner() {
-    const API_KEY = process.env.API_KEY;
+  function getSigner(network: string = "sepolia") {
     const PRIVATE_KEY = process.env.PRIVATE_KEY;
   
     if (!PRIVATE_KEY) {
       throw new Error("❌ PRIVATE_KEY is not set in environment variables");
     }
   
-    if (!API_KEY) {
-      throw new Error("❌ API_KEY is not set in environment variables");
+    let provider;
+
+    switch (network) {
+      case "sepolia":
+        if (!process.env.SEPOLIA_API_KEY) throw new Error("❌ SEPOLIA_API_KEY is missing");
+        provider = new ethers.providers.AlchemyProvider("sepolia", process.env.SEPOLIA_API_KEY);
+        break;
+      case "arbitrum":
+        if (!process.env.ARBITRUM_RPC_URL) throw new Error("❌ ARBITRUM_RPC_URL is missing");
+        provider = new ethers.providers.JsonRpcProvider(process.env.ARBITRUM_RPC_URL);
+        break;
+      default:
+        throw new Error(`❌ Unsupported network: ${network}`);
     }
   
-    const provider = new ethers.providers.AlchemyProvider("sepolia", API_KEY);
-    const signer = new ethers.Wallet(PRIVATE_KEY, provider);
+    return new ethers.Wallet(PRIVATE_KEY, provider);
+}
+
   
-    return signer;
-  }
+  
