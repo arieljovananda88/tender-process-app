@@ -1,8 +1,8 @@
 require("dotenv").config();
 const { ethers } = require("ethers");
-import tenderManagerAbi from '../../artifacts/contracts/TenderManager.sol/TenderManager.json'
-import documentStoreAbi from '../../artifacts/contracts/DocumentStore.sol/DocumentStore.json'
-import publicKeyAbi from '../../artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json'
+import tenderManagerAbi from '../../../artifacts/contracts/TenderManager.sol/TenderManager.json'
+import documentStoreAbi from '../../../artifacts/contracts/DocumentStore.sol/DocumentStore.json'
+import publicKeyAbi from '../../../artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json'
 
 async function main() {
   const  provider = new ethers.providers.JsonRpcProvider(process.env.ARBITRUM_SEPOLIA_RPC_URL);

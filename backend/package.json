@@ -4,6 +4,7 @@
   "description": "1. Create `.env` file by copying `.env.example` file and fill it with your environment variables\r 2. Install packages: `npm i`\r 3. Run the server: `npm start`",
   "main": "dist/index.js",
   "dependencies": {
+    "@ethersproject/providers": "^5.7.2",
     "axios": "^1.7.9",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
@@ -14,27 +15,28 @@
     "ipfs-http-client": "^60.0.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
     "nodemon": "^3.1.7",
-    "prisma": "^5.22.0",
-    "@ethersproject/providers": "^5.7.2"
+    "prisma": "^5.22.0"
   },
   "scripts": {
-    "start": "tsc && node dist/src/cmd/index.js",
+    "start": "tsc && node dist/src/cmd/rest/index.js",
     "dev": "nodemon --exec ts-node ./cmd/index.ts",
     "compile": "hardhat compile",
-    "deploy:l2": "hardhat run scripts/deploy.ts --network optimism"
+    "deploy:l2": "hardhat run scripts/deploy.ts --network optimism",
+    "cron": "tsc && node dist/src/cmd/cron/index.js"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@openzeppelin/contracts": "^5.0.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.17",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.13.5",
+    "@types/node-cron": "^3.0.11",
     "hardhat": "^2.22.19",
     "ts-node": "^10.9.1",
-    "typescript": "^5.0.0",
-    "@eth-optimism/hardhat-ovm": "^1.0.3",
-    "@openzeppelin/contracts": "^5.0.1"
+    "typescript": "^5.0.0"
   }
 }
