@@ -13,22 +13,13 @@ function AuthPage() {
   const [authStatus, setAuthStatus] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (isConnected) {
-      checkRegistration();
-    }
-  }, [isConnected]);
-
-  const checkRegistration = async () => {
+  const isRegistered = async () => {
     try {
       const res = await axios.get(`${BACKEND_URL}/auth/is-registered?address=${address}`);
-      if (!res.data.isRegistered) {
-        navigate('/register');
-        return;
-      }
-      fetchNonce();
+      return res.data.isRegistered;
     } catch (err) {
       console.error("Failed to check registration", err);
+      return false;
     }
   };
 
@@ -36,22 +27,31 @@ function AuthPage() {
     try {
       const res = await axios.get(`${BACKEND_URL}/auth/nonce?address=${address}`);
       setAuthMessage(res.data.message);
+      return res.data.message;
     } catch (err) {
       console.error("Failed to get nonce", err);
+      throw err;
     }
   };
 
   const handleSign = async () => {
+    if (!address) {
+      console.error("No wallet connected");
+      return;
+    }
+
+    const registered = await isRegistered();
+    if (!registered) {
+      return navigate("/register");
+    }
+
     try {
-      if (!address) {
-        console.error("No wallet connected");
-        return;
-      }
-      const signature = await signMessageAsync({ message: authMessage });
-  
+      const nonce = await fetchNonce();
+      const signature = await signMessageAsync({ message: nonce });
+
       const res = await axios.post(`${BACKEND_URL}/auth/verify`, { address, signature });
       setAuthStatus(res.data.success ? "Authenticated!" : "Authentication Failed");
-      
+
       if (res.data.success) {
         navigate("/dashboard");
       }
@@ -68,7 +68,7 @@ function AuthPage() {
         <p className="text-gray-600 text-center mb-8">
           Connect your wallet to get started with the decentralized tender process
         </p>
-        
+
         <div className="mb-6">
           <ConnectButton />
         </div>
@@ -76,13 +76,21 @@ function AuthPage() {
         {isConnected && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600 text-center">Connected Wallet: {address}</p>
-            
-            <button 
+
+            <button
               className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
               onClick={handleSign}
             >
               Sign & Authenticate
             </button>
+
+            <button
+              className="w-full bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
+              onClick={() => navigate("/register")}
+            >
+              Register
+            </button>
+
             <p className="text-center">{authStatus}</p>
           </div>
         )}
@@ -91,4 +99,4 @@ function AuthPage() {
   );
 }
 
-export default AuthPage; 
+export default AuthPage;

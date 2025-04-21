@@ -17,7 +17,7 @@ export function getPublicKeyStoregeContractInstance() {
   
     if (!CONTRACT_ADDRESS) throw new Error("DOCUMENT_STORE_CONTRACT_ADDRESS is missing");
 
-    const signer = getSigner();
+    const signer = getSigner("arbitrum");
     return new ethers.Contract(CONTRACT_ADDRESS, DocumentStoreArtifact.abi, signer);
   }
 
@@ -26,7 +26,7 @@ export function getPublicKeyStoregeContractInstance() {
   
     if (!CONTRACT_ADDRESS) throw new Error("TENDER_MANAGER_CONTRACT_ADDRESS is missing");
 
-    const signer = getSigner();
+    const signer = getSigner("arbitrum");
     return new ethers.Contract(CONTRACT_ADDRESS, TenderManagerArtifact.abi, signer);
   
   }
@@ -42,12 +42,12 @@ export function getPublicKeyStoregeContractInstance() {
 
     switch (network) {
       case "sepolia":
-        if (!process.env.SEPOLIA_API_KEY) throw new Error("❌ SEPOLIA_API_KEY is missing");
-        provider = new ethers.providers.AlchemyProvider("sepolia", process.env.SEPOLIA_API_KEY);
+        if (!process.env.SEPOLIA_RPC_URL) throw new Error("❌ SEPOLIA_RPC_URL is missing");
+        provider = new ethers.providers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
         break;
       case "arbitrum":
-        if (!process.env.ARBITRUM_RPC_URL) throw new Error("❌ ARBITRUM_RPC_URL is missing");
-        provider = new ethers.providers.JsonRpcProvider(process.env.ARBITRUM_RPC_URL);
+        if (!process.env.ARBITRUM_SEPOLIA_RPC_URL) throw new Error("❌ ARBITRUM_SEPOLIA_RPC_URL is missing");
+        provider = new ethers.providers.JsonRpcProvider(process.env.ARBITRUM_SEPOLIA_RPC_URL);
         break;
       default:
         throw new Error(`❌ Unsupported network: ${network}`);

@@ -34,8 +34,8 @@ async function uploadToIPFS(filePath: string, fileName: string) {
 }
 
 // Helper: Upload encrypted document CID to smart contract
-async function uploadEncryptedDocument(contract: any, tenderID: string, address: string, encryptedCid: string, fileName: string) {
-  const tx = await contract.uploadDocument(tenderID, address, encryptedCid, fileName);
+async function uploadEncryptedDocument(contract: any, tenderID: string, address: string, encryptedCid: string, fileName: string, fileType: string) {
+  const tx = await contract.uploadDocument(tenderID, address, encryptedCid, fileName, fileType);
   await tx.wait();
 }
 
@@ -48,7 +48,11 @@ async function uploadDocument(req: any, res: any) {
     const { file } = req;
     const fileName = req.body.file_name;
     const submitterAddress = req.body.address;
-    const tenderID = ethers.utils.formatBytes32String("2"); // hardcoded for now
+    const tenderID = req.body.tender_id
+    if (!tenderID){
+      return res.status(400).json({ error: "tender id should be provided"});
+    }
+    const tenderIDBytes = ethers.utils.formatBytes32String(tenderID);
 
     if (err || !file) {
       return res.status(400).json({ error: err ? 'File upload failed' : 'No file provided' });
@@ -61,7 +65,7 @@ async function uploadDocument(req: any, res: any) {
 
       const [submitterPubKey, organizerAddress] = await Promise.all([
         publicKeyStorage.getPublicKey(submitterAddress),
-        tenderManager.getOwner(tenderID)
+        tenderManager.getOwner(tenderIDBytes)
       ]);
 
       if (!submitterPubKey) {
@@ -72,8 +76,8 @@ async function uploadDocument(req: any, res: any) {
       const encryptedCidSubmitter = await handleEncrypt(submitterPubKey, cid);
       const encryptedCidOrganizer = await handleEncrypt(organizerPubKey, cid);
 
-      await uploadEncryptedDocument(documentStore, tenderID, submitterAddress, encryptedCidSubmitter, fileName);
-      await uploadEncryptedDocument(documentStore, tenderID, organizerAddress, encryptedCidOrganizer, fileName);
+      await uploadEncryptedDocument(documentStore, tenderIDBytes, submitterAddress, encryptedCidSubmitter, fileName, "registration");
+      await uploadEncryptedDocument(documentStore, tenderIDBytes, organizerAddress, encryptedCidOrganizer, fileName, "registration");
 
 
       return res.status(200).json({
