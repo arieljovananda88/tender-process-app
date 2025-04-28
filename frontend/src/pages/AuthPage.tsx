@@ -3,19 +3,36 @@ import { useAccount, useSignMessage } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { CardContainer } from "@/components/CardContainer"
+import { Button } from "@/components/ui/button"
+// import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 const BACKEND_URL = `http://localhost:${import.meta.env.VITE_BACKEND_PORT}`;
 
-function AuthPage() {
+interface AuthResponse {
+  success: boolean;
+  message?: string;
+}
+
+interface NonceResponse {
+  message: string;
+}
+
+interface IsRegisteredResponse {
+  isRegistered: boolean;
+}
+
+const AuthPage: React.FC = () => {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
-  const [authMessage, setAuthMessage] = useState("");
-  const [authStatus, setAuthStatus] = useState("");
+  const [authMessage, setAuthMessage] = useState<string>("");
+  const [authStatus, setAuthStatus] = useState<string>("");
   const navigate = useNavigate();
 
-  const isRegistered = async () => {
+  const isRegistered = async (): Promise<boolean> => {
     try {
-      const res = await axios.get(`${BACKEND_URL}/auth/is-registered?address=${address}`);
+      const res = await axios.get<IsRegisteredResponse>(`${BACKEND_URL}/auth/is-registered?address=${address}`);
       return res.data.isRegistered;
     } catch (err) {
       console.error("Failed to check registration", err);
@@ -23,9 +40,9 @@ function AuthPage() {
     }
   };
 
-  const fetchNonce = async () => {
+  const fetchNonce = async (): Promise<string> => {
     try {
-      const res = await axios.get(`${BACKEND_URL}/auth/nonce?address=${address}`);
+      const res = await axios.get<NonceResponse>(`${BACKEND_URL}/auth/nonce?address=${address}`);
       setAuthMessage(res.data.message);
       return res.data.message;
     } catch (err) {
@@ -34,7 +51,7 @@ function AuthPage() {
     }
   };
 
-  const handleSign = async () => {
+  const handleSign = async (): Promise<void> => {
     if (!address) {
       console.error("No wallet connected");
       return;
@@ -49,7 +66,7 @@ function AuthPage() {
       const nonce = await fetchNonce();
       const signature = await signMessageAsync({ message: nonce });
 
-      const res = await axios.post(`${BACKEND_URL}/auth/verify`, { address, signature });
+      const res = await axios.post<AuthResponse>(`${BACKEND_URL}/auth/verify`, { address, signature });
       setAuthStatus(res.data.success ? "Authenticated!" : "Authentication Failed");
 
       if (res.data.success) {
@@ -63,13 +80,13 @@ function AuthPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+      <CardContainer>
         <h1 className="text-3xl font-bold text-center mb-6">Welcome to Tender dApp</h1>
         <p className="text-gray-600 text-center mb-8">
           Connect your wallet to get started with the decentralized tender process
         </p>
 
-        <div className="mb-6">
+        <div className="flex justify-center mb-4">
           <ConnectButton />
         </div>
 
@@ -77,26 +94,29 @@ function AuthPage() {
           <div className="space-y-4">
             <p className="text-sm text-gray-600 text-center">Connected Wallet: {address}</p>
 
-            <button
-              className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+            <Button
+              variant="default"
+              className="w-full bg-blue-500 hover:bg-blue-600"
               onClick={handleSign}
             >
               Sign & Authenticate
-            </button>
+            </Button>
 
-            <button
-              className="w-full bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
+            <Label className="text-center block mt-4">Have not registered? register here</Label>
+            <Button
+              variant="outline"
+              className="w-full"
               onClick={() => navigate("/register")}
             >
               Register
-            </button>
+            </Button>
 
             <p className="text-center">{authStatus}</p>
           </div>
         )}
-      </div>
+      </CardContainer>
     </div>
   );
-}
+};
 
-export default AuthPage;
+export default AuthPage; 

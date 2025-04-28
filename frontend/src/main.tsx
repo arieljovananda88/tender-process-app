@@ -6,6 +6,7 @@ import { sepolia } from "wagmi/chains";
 import { RainbowKitProvider, getDefaultWallets } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import "./index.css";
 
 const chains = [sepolia];
 
@@ -23,10 +24,12 @@ const config = createConfig({
   },
 });
 
-
 const queryClient = new QueryClient();
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const root = document.getElementById("root");
+if (!root) throw new Error("Root element not found");
+
+ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <WagmiConfig config={config}>
@@ -36,4 +39,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       </WagmiConfig>
     </QueryClientProvider>
   </React.StrictMode>
-);
+); 

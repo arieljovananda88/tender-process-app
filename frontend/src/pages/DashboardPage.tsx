@@ -8,18 +8,24 @@ import documentStoreArtifact from "../../../backend/artifacts/contracts/Document
 // Polyfill Buffer for browser environment
 window.Buffer = Buffer;
 
-function DashboardPage() {
-  const { address, isConnected } = useAccount();
-  const [message, setMessage] = useState("Hello Blockchain!");
-  const [encryptedData, setEncryptedData] = useState("");
-  const [decryptedMessage, setDecryptedMessage] = useState("");
-  const [recoveredPublicKey, setRecoveredPublicKey] = useState("");
-  const [myPublicKey, setMyPublicKey] = useState("");
-  const [myPrivateKey, setMyPrivateKey] = useState("308184020100301006072a8648ce3d020106052b8104000a046d306b020101042068fddc1db4616716f5a3294bdddd363b5f29cb36baff141d185ad080eac7f957a1440342000492ecb5849c783b4590cb89f90076bf19c04aa0d3c9adea2611f1de8afbd3b1b283ac6502dead591d6ee81adb7c7476103ff68e7531f4ffd705a4b1169d0b8efd");
-  const [myDocuments, setMyDocuments] = useState([]);
-  const [Documents, setDocuments] = useState([]);
+interface Document {
+  documentName: string;
+  submissionDate: string;
+  documentCid: string;
+}
 
-  function extractRawPublicKey(asn1Hex) {
+const DashboardPage: React.FC = () => {
+  const { address, isConnected } = useAccount();
+  const [message, setMessage] = useState<string>("Hello Blockchain!");
+  const [encryptedData, setEncryptedData] = useState<string>("");
+  const [decryptedMessage, setDecryptedMessage] = useState<string>("");
+  const [recoveredPublicKey, setRecoveredPublicKey] = useState<string>("");
+  const [myPublicKey, setMyPublicKey] = useState<string>("");
+  const [myPrivateKey, setMyPrivateKey] = useState<string>("308184020100301006072a8648ce3d020106052b8104000a046d306b020101042068fddc1db4616716f5a3294bdddd363b5f29cb36baff141d185ad080eac7f957a1440342000492ecb5849c783b4590cb89f90076bf19c04aa0d3c9adea2611f1de8afbd3b1b283ac6502dead591d6ee81adb7c7476103ff68e7531f4ffd705a4b1169d0b8efd");
+  const [myDocuments, setMyDocuments] = useState<Document[]>([]);
+  const [Documents, setDocuments] = useState<Document[]>([]);
+
+  function extractRawPublicKey(asn1Hex: string): Buffer {
     const hex = asn1Hex.replace(/^0x/, '');
     const match = hex.match(/04([0-9a-fA-F]{128})(?:[^0-9a-fA-F]|$)/);
     if (match) {
@@ -28,7 +34,7 @@ function DashboardPage() {
     throw new Error('Unable to extract a valid EC point from the public key');
   }
   
-  function extractRawPrivateKey(asn1Hex) {
+  function extractRawPrivateKey(asn1Hex: string): Buffer {
     const hex = asn1Hex.replace(/^0x/, '');
     const privateKeyMarker = hex.indexOf('0201010420');
     if (privateKeyMarker !== -1) {
@@ -37,7 +43,7 @@ function DashboardPage() {
     throw new Error('Invalid private key format');
   }
 
-  const handleEncrypt = async () => {
+  const handleEncrypt = async (): Promise<void> => {
     try {
       const rawPublicKey = extractRawPublicKey(myPublicKey);
       const encrypted = encrypt(rawPublicKey, Buffer.from(message));
@@ -47,7 +53,7 @@ function DashboardPage() {
     }
   };
   
-  const handleDecrypt = async () => {
+  const handleDecrypt = async (): Promise<void> => {
     try {
       const encryptedBuffer = Buffer.from("043b4f8fa4469c67b42941c271e682f0078763ef3b401a77e3fdedecd1880e527e79710184aa770baf6a49afd9442451c7be48c5b5dbe08dd3675ccc473eaa7194a10452282e35b47ea2c8d1ee35a4e68e2b4aafa154cac934e92937ee8f7d82fc29087fc0868a3659c67067056bb22d1a88c848211695d2fe41d3a4866e53937fc915f3e4155ee632b36402de7395", "hex");
       const rawPrivateKey = extractRawPrivateKey(myPrivateKey);
@@ -59,7 +65,7 @@ function DashboardPage() {
     }
   };
 
-  const getPublicKeyFromSignature = async () => {
+  const getPublicKeyFromSignature = async (): Promise<void> => {
     try {
       const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
       const account = accounts[0];
@@ -77,7 +83,7 @@ function DashboardPage() {
     }
   };
 
-  const fetchMyDocumentsFromTender2 = async () => {
+  const fetchMyDocumentsFromTender2 = async (): Promise<void> => {
     try {
       if (!address || !isConnected) {
         alert("Please connect your wallet first.");
@@ -101,7 +107,7 @@ function DashboardPage() {
     }
   };
 
-  const fetchDocumentsFromTender2 = async () => {
+  const fetchDocumentsFromTender2 = async (): Promise<void> => {
     try {
       if (!address || !isConnected) {
         alert("Please connect your wallet first.");
@@ -199,24 +205,11 @@ function DashboardPage() {
                 ))}
               </ul>
             </div>
-
-            <div>
-              <h3 className="font-semibold mb-2">Documents as Owner</h3>
-              <ul className="space-y-2">
-                {Documents.map((doc, i) => (
-                  <li key={i} className="border p-2 rounded shadow">
-                    📄 <strong>{doc.documentName}</strong><br />
-                    🕒 {new Date(Number(doc.submissionDate) * 1000).toLocaleString()}<br />
-                    🔗 CID: {doc.documentCid}
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default DashboardPage; 

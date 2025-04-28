@@ -4,7 +4,7 @@ import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import RegisterPage from './pages/RegisterPage';
 
-function App() {
+const App: React.FC = () => {
   return (
     <Router>
       <div className="min-h-screen bg-gray-100">
@@ -18,6 +18,6 @@ function App() {
       </div>
     </Router>
   );
-}
+};
 
-export default App;
+export default App; 
