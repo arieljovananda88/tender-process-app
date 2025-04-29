@@ -1,18 +1,27 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import RegisterPage from './pages/RegisterPage';
-
+import { DashboardLayout } from './components/layouts/DashboardLayout';
+import SearchTenderPage from './pages/SearchTenderPage';
+import TenderDetailPage from './pages/DetailTenderPage';
 const App: React.FC = () => {
   return (
     <Router>
       <div className="min-h-screen bg-gray-100">
         <Routes>
-          <Route path="/" element={<AuthPage />} />
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/tenders/search" element={<SearchTenderPage />} />
+            <Route path="/tenders/registered" element={<div>Registered Tenders Page</div>} />
+            <Route path="/my-tenders" element={<div>My Tenders Page</div>} />
+            <Route path="/tenders/:id" element={<TenderDetailPage />} />
+            {/* <Route path="/settings" element={SearchTenderPage} /> */}
+          </Route>
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

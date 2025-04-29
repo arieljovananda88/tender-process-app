@@ -186,7 +186,7 @@ export async function getAllTenders(req: Request, res: Response) {
             pagination: {
                 page,
                 pageSize,
-                total: await tenderManager.allTenderIds().then((ids: any) => ids.length)
+                total: formattedTenders.length
             }
         });
     } catch (error: any) {
