@@ -18,7 +18,6 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 
 export function DashboardSidebar() {
