@@ -2,11 +2,13 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar, Trophy } from "lucide-react"
+import { formatDate, shortenAddress } from "@/lib/utils"
+import { useNavigate } from "react-router-dom"
 
 interface Participant {
   address: string
   name: string
-  applicationDate: number
+  applicationDate: string
   documentUrl: string
 }
 
@@ -14,21 +16,14 @@ interface ParticipantsListProps {
   isOwner: boolean
   participants: Participant[]
   winnerId: string
+  tenderId: string
 }
 
-export function ParticipantsList({ isOwner, participants, winnerId }: ParticipantsListProps) {
-  // Format the timestamps to readable dates
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
+export function ParticipantsList({ isOwner, participants, winnerId, tenderId }: ParticipantsListProps) {
+  const navigate = useNavigate()
 
-  // Shorten address for display
-  const shortenAddress = (address: string) => {
-    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`
+  const handleViewSubmissions = (participantAddress: string) => {
+    navigate(`/tenders/${tenderId}/submissions/${participantAddress}`)
   }
 
   return (
@@ -43,9 +38,12 @@ export function ParticipantsList({ isOwner, participants, winnerId }: Participan
             <Card key={index} className={`overflow-hidden ${isWinner ? "border-green-300 bg-green-50" : ""}`}>
               <CardContent className="p-0">
                 <div className="p-4">
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex flex-col mb-2">
+                    <span className="text-xs text-muted-foreground mb-1" title={participant.address}>
+                      {shortenAddress(participant.address)}
+                    </span>
                     <div className="flex items-center">
-                      <h3 className="font-medium">{participant.name}</h3>
+                      <h3 className="font-medium truncate">{participant.name}</h3>
                       {isWinner && (
                         <div className="ml-2 flex items-center text-green-600">
                           <Trophy className="h-4 w-4 mr-1" />
@@ -53,9 +51,6 @@ export function ParticipantsList({ isOwner, participants, winnerId }: Participan
                         </div>
                       )}
                     </div>
-                    <span className="text-xs text-muted-foreground" title={participant.address}>
-                      {shortenAddress(participant.address)}
-                    </span>
                   </div>
 
                   <div className="flex items-center text-sm text-muted-foreground mb-3">
@@ -65,7 +60,12 @@ export function ParticipantsList({ isOwner, participants, winnerId }: Participan
 
                   {isOwner && (
                     <div className="flex justify-end">
-                      <Button variant="default" size="sm" className="h-8 bg-blue-600 hover:bg-blue-700">
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        className="h-8 bg-blue-600 hover:bg-blue-700"
+                        onClick={() => handleViewSubmissions(participant.address)}
+                      >
                         View Submissions
                       </Button>
                     </div>

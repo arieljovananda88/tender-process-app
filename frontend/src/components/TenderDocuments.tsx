@@ -3,12 +3,13 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FileText, Download, File, FileImage, FileSpreadsheet } from "lucide-react"
+import { formatDate } from "@/lib/utils"
 
 interface Document {
   id: string
   name: string
   size: number
-  uploadDate: number
+  uploadDate: string
   url: string
 }
 
@@ -17,15 +18,6 @@ interface TenderDocumentsProps {
 }
 
 export function TenderDocuments({ documents }: TenderDocumentsProps) {
-  // Format the timestamps to readable dates
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
   // Get file icon based on extension
   const getFileIcon = (filename: string) => {
     const extension = filename.split(".").pop()?.toLowerCase()

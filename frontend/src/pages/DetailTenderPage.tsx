@@ -5,11 +5,20 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, User, Clock, ArrowLeft } from "lucide-react"
 import { ParticipantsList } from "@/components/ParticipantsList"
-import { RegistrationDocuments } from "@/components/RegistrationDocuments"
-import { TenderDocuments } from "@/components/TenderDocuments"
+import { DocumentList } from "@/components/DocumentList"
 import { getTenderById, type Tender } from "@/lib/api"
 import { formatDate, shortenAddress, calculateTimeRemaining } from "@/lib/utils"
 import { useAccount } from "wagmi"
+
+interface Document {
+  id: string
+  name: string
+  size: number
+  uploadDate: string
+  url: string
+  type: string
+}
+
 // Mock data for participants, tender documents, and registration documents
 const mockData = {
   isRegistered: true,
@@ -17,19 +26,19 @@ const mockData = {
     {
       address: "0xA123456789012345678901234567890123456789",
       name: "Tech Solutions Inc.",
-      applicationDate: Math.floor(Date.now() / 1000) - 86400 * 5,
+      applicationDate: new Date().toISOString(),
       documentUrl: "/documents/application1.pdf",
     },
     {
       address: "0xB234567890123456789012345678901234567890",
       name: "Network Systems Ltd.",
-      applicationDate: Math.floor(Date.now() / 1000) - 86400 * 3,
+      applicationDate: new Date().toISOString(),
       documentUrl: "/documents/application2.pdf",
     },
     {
       address: "0xC345678901234567890123456789012345678901",
       name: "Digital Infrastructure Co.",
-      applicationDate: Math.floor(Date.now() / 1000) - 86400 * 1,
+      applicationDate: new Date().toISOString(),
       documentUrl: "/documents/application3.pdf",
     },
   ],
@@ -38,29 +47,33 @@ const mockData = {
       id: "1",
       name: "Technical Requirements.pdf",
       size: 2.4,
-      uploadDate: Math.floor(Date.now() / 1000) - 86400 * 7,
+      uploadDate: new Date().toISOString(),
       url: "/documents/technical-requirements.pdf",
+      type: "pdf"
     },
     {
       id: "2",
       name: "Financial Terms.docx",
       size: 1.2,
-      uploadDate: Math.floor(Date.now() / 1000) - 86400 * 7,
+      uploadDate: new Date().toISOString(),
       url: "/documents/financial-terms.docx",
+      type: "docx"
     },
     {
       id: "3",
       name: "Contract Template.pdf",
       size: 3.5,
-      uploadDate: Math.floor(Date.now() / 1000) - 86400 * 6,
+      uploadDate: new Date().toISOString(),
       url: "/documents/contract-template.pdf",
+      type: "pdf"
     },
     {
       id: "4",
       name: "Compliance Requirements.pdf",
       size: 1.8,
-      uploadDate: Math.floor(Date.now() / 1000) - 86400 * 5,
+      uploadDate: new Date().toISOString(),
       url: "/documents/compliance-requirements.pdf",
+      type: "pdf"
     },
   ],
   registrationDocuments: [
@@ -68,15 +81,17 @@ const mockData = {
       id: "1",
       name: "Company Registration.pdf",
       size: 1.5,
-      uploadDate: Math.floor(Date.now() / 1000) - 86400 * 2,
+      uploadDate: new Date().toISOString(),
       url: "/documents/company-registration.pdf",
+      type: "pdf"
     },
     {
       id: "2",
       name: "Tax Clearance Certificate.pdf",
       size: 0.8,
-      uploadDate: Math.floor(Date.now() / 1000) - 86400 * 2,
+      uploadDate: new Date().toISOString(),
       url: "/documents/tax-clearance.pdf",
+      type: "pdf"
     },
   ],
 }
@@ -104,6 +119,20 @@ export default function TenderDetailPage() {
     fetchTender()
   }, [id])
 
+  const handleUploadTenderDocument = async (file: File, name: string, type: string) => {
+    // TODO: Implement tender document upload
+    console.log("Uploading tender document:", { file, name, type })
+  }
+
+  const handleUploadRegistrationDocument = async (file: File, name: string, type: string) => {
+    // TODO: Implement registration document upload
+    console.log("Uploading registration document:", { file, name, type })
+  }
+
+  const handleDownloadDocument = (document: Document) => {
+    // TODO: Implement document download
+    console.log("Downloading document:", document)
+  }
 
   if (loading) {
     return (
@@ -122,7 +151,7 @@ export default function TenderDetailPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-5xl">
+    <div className="container mx-auto py-6 px-4 max-w-[1920px]">
       <div className="mb-6">
         <Link
           to="/tenders/search"
@@ -133,9 +162,24 @@ export default function TenderDetailPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Main content - 2/3 width on desktop */}
-        <div className="md:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        {/* Left sidebar - Participants (only for non-owners) */}
+        {!isOwner && (
+          <div className="xl:col-span-3 space-y-6">
+            <div className="sticky top-6">
+              <h2 className="text-lg font-semibold mb-4">Participants</h2>
+              <ParticipantsList
+                participants={mockData.participants}
+                winnerId={tender.winner}
+                isOwner={isOwner}
+                tenderId={id as string}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Main content - center */}
+        <div className={`space-y-6 ${isOwner ? 'xl:col-span-12' : 'xl:col-span-6'}`}>
           <div className="flex justify-between items-start">
             <h1 className="text-2xl font-bold">{tender.name}</h1>
             <Badge className={tender.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
@@ -169,25 +213,41 @@ export default function TenderDetailPage() {
             <p className="text-sm text-muted-foreground whitespace-pre-line">{tender.description}</p>
           </div>
 
-          {/* Tender Documents - Emphasized */}
-          {!isOwner && (
+          {/* Participants (only for owners) */}
+          {isOwner && (
             <div className="border-t pt-4">
-              <h2 className="text-lg font-semibold mb-4">Your Tender Documents</h2>
-              <TenderDocuments documents={mockData.tenderDocuments} />
+              <h2 className="text-lg font-semibold mb-2">Participants</h2>
+              <ParticipantsList
+                participants={mockData.participants}
+                winnerId={tender.winner}
+                isOwner={isOwner}
+                tenderId={id as string}
+              />
             </div>
           )}
 
-          {/* Participants section */}
-          <div className="border-t pt-4">
-            <h2 className="text-lg font-semibold mb-4">Participants</h2>
-            <ParticipantsList isOwner={isOwner} participants={mockData.participants} winnerId={tender.winner} />
-          </div>
+          {/* Tender Documents - Emphasized */}
+          {!isOwner && (
+            <div className="border-t pt-4">
+              <h2 className="text-lg font-semibold mb-2">Tender Documents</h2>
+              <DocumentList
+                documents={mockData.tenderDocuments}
+                isRegistered={mockData.isRegistered}
+                isActive={tender.isActive}
+                typeOfFile="Tender"
+                onUpload={handleUploadTenderDocument}
+                onDownload={handleDownloadDocument}
+                iconSize={10}
+                textSize="base"
+              />
+            </div>
+          )}
         </div>
 
-        {/* Sidebar - 1/3 width on desktop */}
-        <div className="space-y-6">
-          {/* Application status card - simplified */}
-          {!isOwner && (
+        {/* Right sidebar - Application status and Registration Documents */}
+        {!isOwner && (
+          <div className="xl:col-span-3 space-y-6">
+            {/* Application status card - simplified */}
             <Card>
               <CardContent className="p-4">
                 <h2 className="text-lg font-semibold mb-3">Application Status</h2>
@@ -217,20 +277,23 @@ export default function TenderDetailPage() {
                 )}
               </CardContent>
             </Card>
-          )}
 
-          {/* Registration Documents */}
-          {!isOwner && (
+            {/* Registration Documents */}
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Your Registration Documents</h2>
-              <RegistrationDocuments
+              <h2 className="text-lg font-semibold mb-2">Registration Documents</h2>
+              <DocumentList
+                typeOfFile="Registration"
                 documents={mockData.registrationDocuments}
                 isRegistered={mockData.isRegistered}
                 isActive={tender.isActive}
+                onUpload={handleUploadRegistrationDocument}
+                onDownload={handleDownloadDocument}
+                iconSize={8}
+                textSize="sm"
               />
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

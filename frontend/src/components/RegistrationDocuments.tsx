@@ -3,12 +3,13 @@ import { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FileText, Download, Upload, X, Plus } from "lucide-react"
+import { formatDate } from "@/lib/utils"
 
 interface Document {
   id: string
   name: string
   size: number
-  uploadDate: number
+  uploadDate: string
   url: string
 }
 
@@ -23,15 +24,6 @@ export function RegistrationDocuments({ documents, isRegistered, isActive }: Reg
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Format the timestamps to readable dates
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null
     setSelectedFile(file)
@@ -44,7 +36,7 @@ export function RegistrationDocuments({ documents, isRegistered, isActive }: Reg
         id: `new-${Date.now()}`,
         name: selectedFile.name,
         size: selectedFile.size / (1024 * 1024), // Convert to MB
-        uploadDate: Math.floor(Date.now() / 1000),
+        uploadDate: new Date().toISOString(),
         url: URL.createObjectURL(selectedFile),
       }
 

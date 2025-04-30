@@ -5,6 +5,8 @@ import RegisterPage from './pages/RegisterPage';
 import { DashboardLayout } from './components/layouts/DashboardLayout';
 import SearchTenderPage from './pages/SearchTenderPage';
 import TenderDetailPage from './pages/DetailTenderPage';
+import SubmissionsPage from './pages/SubmissionsPage';
+
 const App: React.FC = () => {
   return (
     <Router>
@@ -19,6 +21,7 @@ const App: React.FC = () => {
             <Route path="/tenders/registered" element={<div>Registered Tenders Page</div>} />
             <Route path="/my-tenders" element={<div>My Tenders Page</div>} />
             <Route path="/tenders/:id" element={<TenderDetailPage />} />
+            <Route path="/tenders/:id/submissions/:address" element={<SubmissionsPage />} />
             {/* <Route path="/settings" element={SearchTenderPage} /> */}
           </Route>
 
