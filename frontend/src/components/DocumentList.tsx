@@ -38,7 +38,6 @@ interface DocumentListProps {
 
 export function DocumentList({ 
   documents, 
-  isRegistered = true, 
   isActive = true, 
   typeOfFile = "Tender",
   allowedFileTypes = ["pdf", "docx", "png", "jpg"],

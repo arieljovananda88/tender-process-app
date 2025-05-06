@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Building2, ChevronDown, ClipboardList, FileSearch, Home, Package, Search, Settings } from "lucide-react"
+import { Building2, ChevronDown, ClipboardList, FileSearch, Home, Package, Search } from "lucide-react"
 
 import {
   Sidebar,

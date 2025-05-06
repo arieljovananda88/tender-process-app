@@ -1,15 +1,14 @@
 "use client"
 
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Calendar, User, Building, FileText, File, FileImage, FileSpreadsheet } from "lucide-react"
+import { ArrowLeft, User, Building, FileText, File, FileImage, FileSpreadsheet } from "lucide-react"
 import { Link } from "react-router-dom"
-import { formatDate, shortenAddress } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { useDocumentStore } from "@/hooks/useContracts"
 import { useEffect, useState } from "react"
-import { useAccount } from "wagmi"
 
 type Document = {
   documentCid: string;
@@ -40,8 +39,8 @@ const getFileIcon = (fileType: string) => {
 
 export default function ParticipantSubmissionsPage() {
   const params = useParams()
-  const navigate = useNavigate()
-  const { address } = useAccount()
+  // const navigate = useNavigate()
+  // const { address } = useAccount()
   const tenderId = params.id as string
   const participantAddress = params.address as string
   const { fetchParticipantDocuments } = useDocumentStore()
