@@ -5,8 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 } 
 
-export const formatDate = (timestamp: string) => {
-  return new Date(timestamp).toLocaleDateString("en-US", {
+export const formatDate = (timestamp: string | bigint) => {
+  const date = typeof timestamp !== 'string' 
+    ? new Date(Number(timestamp) * 1000)
+    : new Date(timestamp);
+    
+  return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

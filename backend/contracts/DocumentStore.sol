@@ -2,7 +2,9 @@
 pragma solidity ^0.8.0;
 
 interface ITenderManager {
-    function getOwner(bytes32 tenderId) external view returns (address);
+    function getOwner(string memory tenderId) external view returns (address);
+    function addPendingParticipant(string memory tenderId, address participant) external;
+    function isParticipant(string memory tenderId, address participant) external view returns (bool);
 }
 
 contract DocumentStore {
@@ -13,17 +15,31 @@ contract DocumentStore {
         uint256 submissionDate;
     }
 
-    mapping(bytes32 => mapping(address => Document[])) public tenderDocuments;
+    mapping(string => mapping(address => Document[])) public tenderDocuments;
 
     ITenderManager public tenderManager;
 
-    event DocumentUploaded(bytes32 indexed tenderId, address indexed contestant, string documentCid, string documentName, uint256 submissionDate);
+    event DocumentUploaded(string indexed tenderId, address indexed contestant, string documentCid, string documentName, uint256 submissionDate);
 
     constructor(address tenderManagerAddress) {
         tenderManager = ITenderManager(tenderManagerAddress);
     }
 
-    function uploadDocument(bytes32 tenderId, address contestant, string memory documentCid, string memory documentName, string memory documentType) public {
+    function uploadDocument(
+        string memory tenderId,
+        address contestant,
+        string memory documentCid,
+        string memory documentName,
+        string memory documentType
+    ) public {
+        // If the documentType is "tender", check if the contestant is a participant
+        if (keccak256(bytes(documentType)) == keccak256(bytes("tender"))) {
+            require(
+                tenderManager.isParticipant(tenderId, contestant),
+                "Only participants can upload tender documents"
+            );
+        }
+
         Document memory newDocument = Document({
             documentCid: documentCid,
             documentName: documentName,
@@ -32,26 +48,29 @@ contract DocumentStore {
         });
 
         tenderDocuments[tenderId][contestant].push(newDocument);
+        if(!tenderManager.isParticipant(tenderId, contestant)){
+            tenderManager.addPendingParticipant(tenderId, contestant);
+        }
 
         emit DocumentUploaded(tenderId, contestant, documentCid, documentName, block.timestamp);
     }
 
-    function getMyDocuments(bytes32 tenderId) public view returns (Document[] memory) {
+    function getMyDocuments(string memory tenderId) public view returns (Document[] memory) {
         return tenderDocuments[tenderId][msg.sender];
     }
 
-    function getMyDocument(bytes32 tenderId, uint256 index) public view returns (string memory, string memory, uint256) {
+    function getMyDocument(string memory tenderId, uint256 index) public view returns (string memory, string memory, uint256) {
         Document memory document = tenderDocuments[tenderId][msg.sender][index];
         return (document.documentCid, document.documentName, document.submissionDate);
     }
 
-    function getDocumentOfUserAsOwner(bytes32 tenderId, address user, uint256 index) public view returns (string memory, string memory, uint256) {
+    function getDocumentOfUserAsOwner(string memory tenderId, address user, uint256 index) public view returns (string memory, string memory, uint256) {
         require(tenderManager.getOwner(tenderId) == msg.sender, "Only tender owner can view this");
         Document memory document = tenderDocuments[tenderId][user][index];
         return (document.documentCid, document.documentName, document.submissionDate);
     }
 
-    function getDocumentsOfTenderAsOwner(bytes32 tenderId, address user) public view returns (Document[] memory) {
+    function getDocumentsOfTenderAsOwner(string memory tenderId, address user) public view returns (Document[] memory) {
         require(tenderManager.getOwner(tenderId) == msg.sender, "Only tender owner can view this");
         return tenderDocuments[tenderId][user];
     }

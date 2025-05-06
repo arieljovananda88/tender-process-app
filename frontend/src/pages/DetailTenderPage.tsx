@@ -8,20 +8,20 @@ import { ParticipantsList } from "@/components/ParticipantsList"
 import { DocumentList } from "@/components/DocumentList"
 import { getTenderById, type Tender } from "@/lib/api"
 import { formatDate, shortenAddress, calculateTimeRemaining } from "@/lib/utils"
-import { useAccount } from "wagmi"
+import { useAccount } from "wagmi";
+import { ethers } from "ethers";
+import DocumentStoreArtifact from "../../../backend/artifacts/contracts/DocumentStore.sol/DocumentStore.json";
+import TenderManagerArtifact from "../../../backend/artifacts/contracts/TenderManager.sol/TenderManager.json";
 
-interface Document {
-  id: string
-  name: string
-  size: number
-  uploadDate: string
-  url: string
-  type: string
-}
+type Document = {
+  documentCid: string;
+  documentName: string;
+  documentType: string;
+  submissionDate: bigint; // `ethers.js` returns BigNumber or bigint
+};
 
 // Mock data for participants, tender documents, and registration documents
 const mockData = {
-  isRegistered: true,
   participants: [
     {
       address: "0xA123456789012345678901234567890123456789",
@@ -42,58 +42,68 @@ const mockData = {
       documentUrl: "/documents/application3.pdf",
     },
   ],
-  tenderDocuments: [
-    {
-      id: "1",
-      name: "Technical Requirements.pdf",
-      size: 2.4,
-      uploadDate: new Date().toISOString(),
-      url: "/documents/technical-requirements.pdf",
-      type: "pdf"
-    },
-    {
-      id: "2",
-      name: "Financial Terms.docx",
-      size: 1.2,
-      uploadDate: new Date().toISOString(),
-      url: "/documents/financial-terms.docx",
-      type: "docx"
-    },
-    {
-      id: "3",
-      name: "Contract Template.pdf",
-      size: 3.5,
-      uploadDate: new Date().toISOString(),
-      url: "/documents/contract-template.pdf",
-      type: "pdf"
-    },
-    {
-      id: "4",
-      name: "Compliance Requirements.pdf",
-      size: 1.8,
-      uploadDate: new Date().toISOString(),
-      url: "/documents/compliance-requirements.pdf",
-      type: "pdf"
-    },
-  ],
-  registrationDocuments: [
-    {
-      id: "1",
-      name: "Company Registration.pdf",
-      size: 1.5,
-      uploadDate: new Date().toISOString(),
-      url: "/documents/company-registration.pdf",
-      type: "pdf"
-    },
-    {
-      id: "2",
-      name: "Tax Clearance Certificate.pdf",
-      size: 0.8,
-      uploadDate: new Date().toISOString(),
-      url: "/documents/tax-clearance.pdf",
-      type: "pdf"
-    },
-  ],
+}
+
+function useIsApproved(tenderId: string) {
+  const { address, isConnected } = useAccount();
+  const [isPending, setIsPending] = useState(false);
+  const [isRegistered, setIsRegistered] = useState(false);
+  useEffect(() => {
+    const fetchRegStatus = async () => {
+      if (!address || !isConnected) {
+        alert("Please connect your wallet first.");
+        return;
+      }
+
+      try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const tenderManagerAddress = "0x772162014301545ef4E8DB2678cb8da7af90c94c";
+        const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
+
+        const resPending = await contract.isPendingParticipant(tenderId, address);
+        const resRegistered = await contract.isParticipant(tenderId, address);
+        setIsPending(resPending)
+        setIsRegistered(resRegistered)
+      } catch (error) {
+        console.error("Error fetching documents:", error);
+      }
+    };
+
+    fetchRegStatus();
+  }, [address, isConnected, tenderId]);
+  return { isPending, isRegistered };
+}
+
+function useMyDocuments(tenderId: string) {
+  const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[] }>({ registrationDocuments: [], tenderDocuments: [] });
+  const { address, isConnected } = useAccount();
+
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      if (!address || !isConnected) {
+        alert("Please connect your wallet first.");
+        return;
+      }
+
+      try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const documentStoreAddress = "0x6b65292637d39C336FbB56e3C7a77B3df27F0F15";
+        const contract = new ethers.Contract(documentStoreAddress, DocumentStoreArtifact.abi, signer);
+
+        const docs = await contract.getMyDocuments(tenderId);
+        const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
+        const tenderDocs = docs.filter((doc: Document) => doc.documentType !== "Registration");
+        setDocuments({ registrationDocuments: registrationDocs, tenderDocuments: tenderDocs });
+      } catch (error) {
+        console.error("Error fetching documents:", error);
+      }
+    };
+
+    fetchDocuments();
+  }, [address, isConnected, tenderId]);
+  return documents;
 }
 
 export default function TenderDetailPage() {
@@ -102,6 +112,8 @@ export default function TenderDetailPage() {
   const [tender, setTender] = useState<Tender | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { registrationDocuments, tenderDocuments } = useMyDocuments(id as string);
+  const { isPending, isRegistered } = useIsApproved(id as string);
 
   const isOwner = address?.toLowerCase() === tender?.owner.toLowerCase()
 
@@ -118,21 +130,6 @@ export default function TenderDetailPage() {
     }
     fetchTender()
   }, [id])
-
-  const handleUploadTenderDocument = async (file: File, name: string, type: string) => {
-    // TODO: Implement tender document upload
-    console.log("Uploading tender document:", { file, name, type })
-  }
-
-  const handleUploadRegistrationDocument = async (file: File, name: string, type: string) => {
-    // TODO: Implement registration document upload
-    console.log("Uploading registration document:", { file, name, type })
-  }
-
-  const handleDownloadDocument = (document: Document) => {
-    // TODO: Implement document download
-    console.log("Downloading document:", document)
-  }
 
   if (loading) {
     return (
@@ -226,19 +223,20 @@ export default function TenderDetailPage() {
             </div>
           )}
 
-          {/* Tender Documents - Emphasized */}
+          {/* Documents Section - Changes based on registration status */}
           {!isOwner && (
             <div className="border-t pt-4">
-              <h2 className="text-lg font-semibold mb-2">Tender Documents</h2>
+              <h2 className="text-lg font-semibold mb-2">
+                {isRegistered ? "Tender Documents" : "Registration Documents"}
+              </h2>
               <DocumentList
-                documents={mockData.tenderDocuments}
-                isRegistered={mockData.isRegistered}
+                documents={isRegistered ? tenderDocuments : registrationDocuments}
+                isRegistered={isRegistered}
                 isActive={tender.isActive}
-                typeOfFile="Tender"
-                onUpload={handleUploadTenderDocument}
-                onDownload={handleDownloadDocument}
+                typeOfFile={isRegistered ? "Tender" : "Registration"}
                 iconSize={10}
                 textSize="base"
+                canUpload={true}
               />
             </div>
           )}
@@ -253,7 +251,14 @@ export default function TenderDetailPage() {
                 <h2 className="text-lg font-semibold mb-3">Application Status</h2>
                 {tender.isActive ? (
                   <>
-                    {mockData.isRegistered ? (
+                    {isPending ? (
+                      <div className="bg-amber-50 text-amber-800 p-3 rounded-md">
+                        <p className="font-medium">Waiting for Approval</p>
+                        <p className="text-sm mt-1">
+                          Your registration is pending approval from the tender owner.
+                        </p>
+                      </div>
+                    ) : isRegistered ? (
                       <div className="bg-blue-50 text-blue-800 p-3 rounded-md">
                         <p className="font-medium">Registered</p>
                         <p className="text-sm mt-1">
@@ -278,20 +283,21 @@ export default function TenderDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Registration Documents */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold mb-2">Registration Documents</h2>
-              <DocumentList
-                typeOfFile="Registration"
-                documents={mockData.registrationDocuments}
-                isRegistered={mockData.isRegistered}
-                isActive={tender.isActive}
-                onUpload={handleUploadRegistrationDocument}
-                onDownload={handleDownloadDocument}
-                iconSize={8}
-                textSize="sm"
-              />
-            </div>
+            {/* Registration Documents - Only show when registered */}
+            {isRegistered && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold mb-2">Registration Documents</h2>
+                <DocumentList
+                  typeOfFile="Registration"
+                  documents={registrationDocuments}
+                  isRegistered={isRegistered}
+                  isActive={tender.isActive}
+                  iconSize={8}
+                  textSize="sm"
+                  canUpload={false}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

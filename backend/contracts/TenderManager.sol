@@ -16,6 +16,8 @@ contract TenderManager {
     mapping(address => mapping(string => Tender)) public tenders;
 
     mapping(string => mapping(address => bool)) public participants;
+
+    mapping(string => mapping(address => bool)) public pendingParticipants;
     
     // Track all tender IDs for pagination
     string[] public allTenderIds;
@@ -26,6 +28,8 @@ contract TenderManager {
 
     // Track all participants for each tender
     mapping(string => address[]) public tenderParticipants;
+
+    mapping(string => address[]) public pendingTenderParticipants;
 
     event TenderCreated(string indexed tenderId, address owner, string name);
     event ParticipantAdded(string indexed tenderId, address participant);
@@ -44,7 +48,6 @@ contract TenderManager {
         address owner
     ) external {
         require(startDate < endDate, "Invalid dates");
-        require(startDate > block.timestamp, "Start date must be in the future");
 
         tenders[owner][tenderId] = Tender({
             owner: owner,
@@ -75,8 +78,20 @@ contract TenderManager {
         require(block.timestamp <= tenders[owner][tenderId].endDate, "Tender has ended");
         require(!participants[tenderId][participant], "Already a participant");
 
+        pendingParticipants[tenderId][participant] = false;
         participants[tenderId][participant] = true;
         tenderParticipants[tenderId].push(participant);
+
+        // Remove from pendingTenderParticipants
+        address[] storage pendingParticipants = pendingTenderParticipants[tenderId];
+        for (uint i = 0; i < pendingParticipants.length; i++) {
+            if (pendingParticipants[i] == participant) {
+                pendingParticipants[i] = pendingParticipants[pendingParticipants.length - 1];
+                pendingParticipants.pop();
+                break;
+            }
+        }
+
         emit ParticipantAdded(tenderId, participant);
     }
 
@@ -175,8 +190,26 @@ contract TenderManager {
         return participants[tenderId][participant];
     }
 
+    function isPendingParticipant(string memory tenderId, address participant) external view returns (bool) {
+        return pendingParticipants[tenderId][participant];
+    }
+
     function getParticipants(string memory tenderId) external view returns (address[] memory) {
         require(tenderToOwner[tenderId] != address(0), "Tender does not exist");
         return tenderParticipants[tenderId];
     }
+
+    function getPendingParticipants(string memory tenderId) external view returns (address[] memory) {
+        require(tenderToOwner[tenderId] != address(0), "Tender does not exist");
+        return pendingTenderParticipants[tenderId];
+    }
+
+    function addPendingParticipant(string memory tenderId, address participant) external {
+    require(tenderToOwner[tenderId] != address(0), "Tender does not exist");
+    require(!pendingParticipants[tenderId][participant], "Already marked as pending");
+
+    pendingParticipants[tenderId][participant] = true;
+    pendingTenderParticipants[tenderId].push(participant);
+}
+    
 }

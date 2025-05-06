@@ -2,8 +2,12 @@
 import { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileText, Download, Upload, X, Plus, File, FileImage, FileSpreadsheet } from "lucide-react"
+import { FileText, Download, Upload, X, Plus, File, FileImage, Loader2 } from "lucide-react"
 import { formatDate } from "@/lib/utils"
+import { useAccount } from "wagmi"
+import { useParams } from "react-router-dom"
+import { toast } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 import {
   Dialog,
   DialogContent,
@@ -13,22 +17,13 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
-interface Document {
-  id: string
-  name: string
-  size: number
-  uploadDate: string
-  url: string
-  type: string
-}
+type Document = {
+  documentCid: string;
+  documentName: string;
+  documentType: string;
+  submissionDate: bigint; // `ethers.js` returns BigNumber or bigint
+};
 
 interface DocumentListProps {
   documents: Document[]
@@ -36,10 +31,9 @@ interface DocumentListProps {
   isActive?: boolean
   typeOfFile: "Tender" | "Registration"
   allowedFileTypes?: string[]
-  onUpload?: (file: File, name: string, type: string) => Promise<void>
-  onDownload?: (document: Document) => void
   iconSize?: number
   textSize?: "sm" | "base" | "lg"
+  canUpload?: boolean
 }
 
 export function DocumentList({ 
@@ -47,16 +41,17 @@ export function DocumentList({
   isRegistered = true, 
   isActive = true, 
   typeOfFile = "Tender",
-  allowedFileTypes = ["pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png"],
-  onUpload,
-  onDownload,
+  allowedFileTypes = ["pdf", "docx", "png", "jpg"],
   iconSize = 10,
-  textSize = "base"
+  textSize = "base",
+  canUpload = true,
 }: DocumentListProps) {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [fileName, setFileName] = useState("")
-  const [fileType, setFileType] = useState("")
+  const [isUploading, setIsUploading] = useState(false)
+  const { address } = useAccount()
+  const { id: tenderId } = useParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const getFileIcon = (filename: string) => {
@@ -68,9 +63,6 @@ export function DocumentList({
       case "doc":
       case "docx":
         return <File className={`h-${iconSize} w-${iconSize} text-blue-500`} />
-      case "xls":
-      case "xlsx":
-        return <FileSpreadsheet className={`h-${iconSize} w-${iconSize} text-green-500`} />
       case "jpg":
       case "jpeg":
       case "png":
@@ -89,62 +81,107 @@ export function DocumentList({
     }
   }
 
-  const handleUpload = async () => {
-    if (selectedFile && fileName && fileType && onUpload) {
-      try {
-        await onUpload(selectedFile, fileName, fileType)
-        setSelectedFile(null)
-        setFileName("")
-        setFileType("")
-        setIsUploadModalOpen(false)
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ""
-        }
-      } catch (error) {
-        console.error("Error uploading file:", error)
-      }
+  const handleDownload = async (doc: Document) => {
+    try {
+      const ipfsUrl = `http://127.0.0.1:8080/ipfs/${doc.documentCid}`;
+      window.open(ipfsUrl, '_blank');
+    } catch (error) {
+      console.error("Download error:", error);
+      toast.error("Failed to open document.");
     }
   }
+  
+
+  const handleUpload = async () => {
+    if (!selectedFile || !fileName) {
+      toast.error("Please fill in all fields and select a file before uploading.")
+      return
+    }
+
+    if(!address) {
+      toast.error("Please connect your wallet to upload documents.")
+      return
+    }
+
+    if(!tenderId) {
+      toast.error("Tender ID not found.")
+      return
+    }
+    setIsUploadModalOpen(false)
+    setIsUploading(true)
+    const formData = new FormData()
+    formData.append("document", selectedFile)
+    formData.append("file_name", fileName)
+    formData.append("address", address)
+    formData.append("tender_id", tenderId)
+    formData.append("type", typeOfFile)
+  
+    try {
+      const response = await fetch("http://localhost:9090/upload-document", {
+        method: "POST",
+        body: formData,
+      })
+  
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`)
+      }
+  
+      await response.json()
+  
+      // Reset UI
+      setSelectedFile(null)
+      setFileName("")
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+      toast.success("Upload file was successful!")
+    } catch (error) {
+      console.error("Error uploading file:", error)
+      toast.error("Failed to upload document. Please try again.")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+  
 
   return (
     <Card>
       <CardContent className="p-4 space-y-4">
         <div className="flex justify-between items-center">
           {/* <h2 className="text-lg font-semibold">Your {typeOfFile} Documents</h2> */}
-          {isRegistered && isActive && (
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="h-8">
+          {canUpload && isActive && (
+            <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)} className="h-8">
               <Plus className="h-4 w-4 mr-1" />
               Add File
             </Button>
           )}
-          <input
-            type="file"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept={allowedFileTypes.map(type => `.${type}`).join(",")}
-          />
         </div>
 
         {documents.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-2">No documents uploaded yet</p>
+          <p className="text-sm text-muted-foreground py-2">
+            No documents uploaded yet
+          </p>
         ) : (
           <div className="space-y-4">
             {documents.map((doc) => (
-              <Card key={doc.id} className="overflow-hidden hover:border-primary transition-colors">
+              <Card key={doc.documentName} className={`overflow-hidden transition-colors`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      {getFileIcon(doc.name)}
+                      {getFileIcon(doc.documentName)}
                       <div className="min-w-0 flex-1">
-                        <h3 className={`font-medium text-${textSize} truncate`}>{doc.name}</h3>
+                        <h3 className={`font-medium text-${textSize} truncate`}>{doc.documentName}</h3>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {doc.size.toFixed(2)} MB • Uploaded {formatDate(doc.uploadDate)}
+                          Uploaded at {formatDate(doc.submissionDate)}
                         </p>
                       </div>
                     </div>
                     <div className="flex-shrink-0">
-                      <Button size="sm" onClick={() => onDownload?.(doc)} className="h-8 w-8 p-0">
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleDownload(doc)} 
+                        className="h-8 w-8 p-0"
+                      >
                         <Download className="h-4 w-4" />
                       </Button>
                     </div>
@@ -172,19 +209,25 @@ export function DocumentList({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="fileType">Document Type</Label>
-              <Select value={fileType} onValueChange={setFileType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select document type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allowedFileTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>File</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Select File
+                </Button>
+                <input
+                  type="file"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept={allowedFileTypes.map(type => `.${type}`).join(",")}
+                />
+              </div>
             </div>
             {selectedFile && (
               <div className="border rounded-md p-3 flex items-center justify-between">
@@ -211,15 +254,31 @@ export function DocumentList({
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUploadModalOpen(false)}>
+            <Button variant="outline" onClick={() => setIsUploadModalOpen(false)} disabled={isUploading}>
               Cancel
             </Button>
-            <Button onClick={handleUpload} disabled={!selectedFile || !fileName || !fileType}>
-              Upload
+            <Button onClick={handleUpload} disabled={!selectedFile || !fileName || isUploading}>
+              {isUploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                "Upload"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {isUploading && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-lg font-medium">Uploading document...</p>
+          </div>
+        </div>
+      )}
     </Card>
   )
 } 

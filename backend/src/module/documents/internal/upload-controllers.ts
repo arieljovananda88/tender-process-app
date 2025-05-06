@@ -5,23 +5,23 @@ import { initIPFSClient, handleFileUpload } from "./commons";
 import { getDocumentStoreContractInstance, getPublicKeyStoregeContractInstance, getTenderManagerContractInstance } from "../../../commons/contract-clients";
 
 // Helper: Encrypt CID using ECIES
-const handleEncrypt = async (publicKey: string, cid: string) => {
-  try {
-    const rawPublicKey = extractRawPublicKey(publicKey);
-    return encrypt(rawPublicKey, Buffer.from(cid)).toString("hex");
-  } catch (error) {
-    console.error("Encryption error:", error);
-    throw new Error("Encryption failed");
-  }
-};
+// const handleEncrypt = async (publicKey: string, cid: string) => {
+//   try {
+//     const rawPublicKey = extractRawPublicKey(publicKey);
+//     return encrypt(rawPublicKey, Buffer.from(cid)).toString("hex");
+//   } catch (error) {
+//     console.error("Encryption error:", error);
+//     throw new Error("Encryption failed");
+//   }
+// };
 
 // Helper: Extract EC public key point from ASN.1 string
-function extractRawPublicKey(asn1Hex: string): Buffer {
-  const hex = asn1Hex.replace(/^0x/, '');
-  const match = hex.match(/04([0-9a-fA-F]{128})(?:[^0-9a-fA-F]|$)/);
-  if (match) return Buffer.from('04' + match[1], 'hex');
-  throw new Error('Invalid EC public key format');
-}
+// function extractRawPublicKey(asn1Hex: string): Buffer {
+//   const hex = asn1Hex.replace(/^0x/, '');
+//   const match = hex.match(/04([0-9a-fA-F]{128})(?:[^0-9a-fA-F]|$)/);
+//   if (match) return Buffer.from('04' + match[1], 'hex');
+//   throw new Error('Invalid EC public key format');
+// }
 
 // Helper: Upload file to IPFS and return result
 async function uploadToIPFS(filePath: string, fileName: string) {
@@ -49,6 +49,7 @@ async function uploadDocument(req: any, res: any) {
     const fileName = req.body.file_name;
     const submitterAddress = req.body.address;
     const tenderID = req.body.tender_id
+    const type = req.body.type
     if (!tenderID){
       return res.status(400).json({ error: "tender id should be provided"});
     }
@@ -63,29 +64,35 @@ async function uploadDocument(req: any, res: any) {
       const ipfsResult = await uploadToIPFS(file.path, file.originalname);
       const cid = ipfsResult.cid.toString();
 
-      const [submitterPubKey, organizerAddress] = await Promise.all([
-        publicKeyStorage.getPublicKey(submitterAddress),
-        tenderManager.getOwner(tenderIDBytes)
-      ]);
+      // const [submitterPubKey, organizerAddress] = await Promise.all([
+      //   publicKeyStorage.getPublicKey(submitterAddress),
+      //   tenderManager.getOwner(tenderIDBytes)
+      // ]);
 
-      if (!submitterPubKey) {
-        return res.status(400).json({ error: "Submitter address not found" });
-      }
+      // if (!submitterPubKey) {
+      //   return res.status(400).json({ error: "Submitter address not found" });
+      // }
 
-      const organizerPubKey = await publicKeyStorage.getPublicKey(organizerAddress);
-      const encryptedCidSubmitter = await handleEncrypt(submitterPubKey, cid);
-      const encryptedCidOrganizer = await handleEncrypt(organizerPubKey, cid);
+      // const organizerPubKey = await publicKeyStorage.getPublicKey(organizerAddress);
+      // const encryptedCidSubmitter = await handleEncrypt(submitterPubKey, cid);
+      // const encryptedCidOrganizer = await handleEncrypt(organizerPubKey, cid);
 
-      await uploadEncryptedDocument(documentStore, tenderIDBytes, submitterAddress, encryptedCidSubmitter, fileName, "registration");
-      await uploadEncryptedDocument(documentStore, tenderIDBytes, organizerAddress, encryptedCidOrganizer, fileName, "registration");
+      // await uploadEncryptedDocument(documentStore, tenderIDBytes, submitterAddress, encryptedCidSubmitter, fileName, "registration");
+      // await uploadEncryptedDocument(documentStore, tenderIDBytes, organizerAddress, encryptedCidOrganizer, fileName, "registration");
 
+      // Instead, just upload the plain CID for both submitter and organizer
+      const organizerAddress = await tenderManager.getOwner(tenderID);
+      await uploadEncryptedDocument(documentStore, tenderID, submitterAddress, cid, fileName, type);
+      await uploadEncryptedDocument(documentStore, tenderID, organizerAddress, cid, fileName, type);
 
       return res.status(200).json({
         success: true,
         ipfsUri: `ipfs://${cid}`,
         ipfsGatewayUrl: `${process.env.IPFS_GATEWAY || 'https://ipfs.io/ipfs/'}${cid}`,
         filename: file.originalname,
-        encryptedCid: `This is your encryptedCid: ${encryptedCidSubmitter}`,
+        // encryptedCid: `This is your encryptedCid: ${encryptedCidSubmitter}`,
+        type: type,
+        cid: cid,
         size: file.size,
         mimetype: file.mimetype,
       });

@@ -23,6 +23,20 @@ function formatTenderResponse(tender: any, tenderId: string) {
     };
 }
 
+/**
+ * Create a new tender
+ * 
+ * Example curl command:
+ * curl -X POST http://localhost:9090/tenders \
+ *   -H "Content-Type: application/json" \
+ *   -d '{
+ *     "name": "Website Development Project",
+ *     "description": "Development of company website with modern design",
+ *     "startDate": "2024-03-20T00:00:00Z",
+ *     "endDate": "2024-04-20T00:00:00Z",
+ *     "owner": "0x3B79DcEAB0DD32F193623A5cF7b2f3F10da3A462"
+ *   }'
+ */
 export async function createTender(req: Request, res: Response) {
     const tenderManager = getTenderManagerContractInstance();
     try {

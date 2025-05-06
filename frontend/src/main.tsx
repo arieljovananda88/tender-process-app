@@ -2,13 +2,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { WagmiConfig, createConfig, http } from "wagmi";
-import { sepolia } from "wagmi/chains";
+import { sepolia, arbitrumSepolia } from "wagmi/chains";
 import { RainbowKitProvider, getDefaultWallets } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./index.css";
 
-const chains = [sepolia];
+const chains = [sepolia, arbitrumSepolia];
 
 const { connectors } = getDefaultWallets({
   appName: "Tender dApp",
