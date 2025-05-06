@@ -83,7 +83,7 @@ export function DocumentList({
 
   const handleDownload = async (doc: Document) => {
     try {
-      const ipfsUrl = `http://127.0.0.1:8080/ipfs/${doc.documentCid}`;
+      const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
       window.open(ipfsUrl, '_blank');
     } catch (error) {
       console.error("Download error:", error);

@@ -1,15 +1,13 @@
 "use client"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, Trophy } from "lucide-react"
-import { formatDate, shortenAddress } from "@/lib/utils"
+import { Trophy } from "lucide-react"
+import { shortenAddress } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
 
 interface Participant {
   address: string
-  name: string
-  applicationDate: string
-  documentUrl: string
+  // name: string
 }
 
 interface ParticipantsListProps {
@@ -43,7 +41,7 @@ export function ParticipantsList({ isOwner, participants, winnerId, tenderId }: 
                       {shortenAddress(participant.address)}
                     </span>
                     <div className="flex items-center">
-                      <h3 className="font-medium truncate">{participant.name}</h3>
+                      <h3 className="font-medium truncate">"name"</h3>
                       {isWinner && (
                         <div className="ml-2 flex items-center text-green-600">
                           <Trophy className="h-4 w-4 mr-1" />
@@ -51,11 +49,6 @@ export function ParticipantsList({ isOwner, participants, winnerId, tenderId }: 
                         </div>
                       )}
                     </div>
-                  </div>
-
-                  <div className="flex items-center text-sm text-muted-foreground mb-3">
-                    <Calendar className="mr-1 h-4 w-4" />
-                    <span>Applied: {formatDate(participant.applicationDate)}</span>
                   </div>
 
                   {isOwner && (

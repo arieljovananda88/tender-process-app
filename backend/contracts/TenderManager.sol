@@ -34,6 +34,7 @@ contract TenderManager {
     event TenderCreated(string indexed tenderId, address owner, string name);
     event ParticipantAdded(string indexed tenderId, address participant);
     event WinnerSelected(string indexed tenderId, address winner);
+    event TenderFinished(string indexed tenderId, address winner);
 
     function getOwner(string memory tenderId) external view returns (address) {
         return tenderToOwner[tenderId];
@@ -95,19 +96,30 @@ contract TenderManager {
         emit ParticipantAdded(tenderId, participant);
     }
 
+     function finishTender(
+        string memory tenderId,
+        address owner
+    ) external {
+        require(tenders[owner][tenderId].isActive, "Tender is already inactive");
+        require(block.timestamp > tenders[owner][tenderId].endDate, "Tender has not ended");
+
+        tenders[owner][tenderId].isActive = false;
+        emit TenderFinished(tenderId, winner);
+    }
+
+
     function selectWinner(
         string memory tenderId,
         address owner,
         address winner
     ) external {
         require(tenderToOwner[tenderId] == owner, "Only owner can select winner");
-        require(tenders[owner][tenderId].isActive, "Tender is not active");
+        require(!tenders[owner][tenderId].isActive, "Tender is still active");
         require(block.timestamp > tenders[owner][tenderId].endDate, "Tender has not ended");
         require(participants[tenderId][winner], "Winner must be a participant");
         require(tenders[owner][tenderId].winner == address(0), "Winner already selected");
 
         tenders[owner][tenderId].winner = winner;
-        tenders[owner][tenderId].isActive = false;
         emit WinnerSelected(tenderId, winner);
     }
 

@@ -5,6 +5,7 @@ interface ITenderManager {
     function getOwner(string memory tenderId) external view returns (address);
     function addPendingParticipant(string memory tenderId, address participant) external;
     function isParticipant(string memory tenderId, address participant) external view returns (bool);
+    function isPendingParticipant(string memory tenderId, address participant) external view returns (bool);
 }
 
 contract DocumentStore {
@@ -48,7 +49,7 @@ contract DocumentStore {
         });
 
         tenderDocuments[tenderId][contestant].push(newDocument);
-        if(!tenderManager.isParticipant(tenderId, contestant)){
+        if(!tenderManager.isParticipant(tenderId, contestant) && !tenderManager.isPendingParticipant(tenderId, contestant)){
             tenderManager.addPendingParticipant(tenderId, contestant);
         }
 

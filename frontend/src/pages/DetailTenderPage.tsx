@@ -9,102 +9,7 @@ import { DocumentList } from "@/components/DocumentList"
 import { getTenderById, type Tender } from "@/lib/api"
 import { formatDate, shortenAddress, calculateTimeRemaining } from "@/lib/utils"
 import { useAccount } from "wagmi";
-import { ethers } from "ethers";
-import DocumentStoreArtifact from "../../../backend/artifacts/contracts/DocumentStore.sol/DocumentStore.json";
-import TenderManagerArtifact from "../../../backend/artifacts/contracts/TenderManager.sol/TenderManager.json";
-
-type Document = {
-  documentCid: string;
-  documentName: string;
-  documentType: string;
-  submissionDate: bigint; // `ethers.js` returns BigNumber or bigint
-};
-
-// Mock data for participants, tender documents, and registration documents
-const mockData = {
-  participants: [
-    {
-      address: "0xA123456789012345678901234567890123456789",
-      name: "Tech Solutions Inc.",
-      applicationDate: new Date().toISOString(),
-      documentUrl: "/documents/application1.pdf",
-    },
-    {
-      address: "0xB234567890123456789012345678901234567890",
-      name: "Network Systems Ltd.",
-      applicationDate: new Date().toISOString(),
-      documentUrl: "/documents/application2.pdf",
-    },
-    {
-      address: "0xC345678901234567890123456789012345678901",
-      name: "Digital Infrastructure Co.",
-      applicationDate: new Date().toISOString(),
-      documentUrl: "/documents/application3.pdf",
-    },
-  ],
-}
-
-function useIsApproved(tenderId: string) {
-  const { address, isConnected } = useAccount();
-  const [isPending, setIsPending] = useState(false);
-  const [isRegistered, setIsRegistered] = useState(false);
-  useEffect(() => {
-    const fetchRegStatus = async () => {
-      if (!address || !isConnected) {
-        alert("Please connect your wallet first.");
-        return;
-      }
-
-      try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const tenderManagerAddress = "0x772162014301545ef4E8DB2678cb8da7af90c94c";
-        const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
-
-        const resPending = await contract.isPendingParticipant(tenderId, address);
-        const resRegistered = await contract.isParticipant(tenderId, address);
-        setIsPending(resPending)
-        setIsRegistered(resRegistered)
-      } catch (error) {
-        console.error("Error fetching documents:", error);
-      }
-    };
-
-    fetchRegStatus();
-  }, [address, isConnected, tenderId]);
-  return { isPending, isRegistered };
-}
-
-function useMyDocuments(tenderId: string) {
-  const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[] }>({ registrationDocuments: [], tenderDocuments: [] });
-  const { address, isConnected } = useAccount();
-
-  useEffect(() => {
-    const fetchDocuments = async () => {
-      if (!address || !isConnected) {
-        alert("Please connect your wallet first.");
-        return;
-      }
-
-      try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const documentStoreAddress = "0x6b65292637d39C336FbB56e3C7a77B3df27F0F15";
-        const contract = new ethers.Contract(documentStoreAddress, DocumentStoreArtifact.abi, signer);
-
-        const docs = await contract.getMyDocuments(tenderId);
-        const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
-        const tenderDocs = docs.filter((doc: Document) => doc.documentType !== "Registration");
-        setDocuments({ registrationDocuments: registrationDocs, tenderDocuments: tenderDocs });
-      } catch (error) {
-        console.error("Error fetching documents:", error);
-      }
-    };
-
-    fetchDocuments();
-  }, [address, isConnected, tenderId]);
-  return documents;
-}
+import { useTenderManager, useDocumentStore } from '@/hooks/useContracts';
 
 export default function TenderDetailPage() {
   const { id } = useParams()
@@ -112,8 +17,9 @@ export default function TenderDetailPage() {
   const [tender, setTender] = useState<Tender | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { registrationDocuments, tenderDocuments } = useMyDocuments(id as string);
-  const { isPending, isRegistered } = useIsApproved(id as string);
+  
+  const { documents, fetchDocuments } = useDocumentStore();
+  const { isPending, isRegistered, checkRegistrationStatus, participants } = useTenderManager();
 
   const isOwner = address?.toLowerCase() === tender?.owner.toLowerCase()
 
@@ -130,6 +36,13 @@ export default function TenderDetailPage() {
     }
     fetchTender()
   }, [id])
+
+  useEffect(() => {
+    if (id) {
+      checkRegistrationStatus(id);
+      fetchDocuments(id);
+    }
+  }, [id, checkRegistrationStatus, fetchDocuments]);
 
   if (loading) {
     return (
@@ -166,7 +79,7 @@ export default function TenderDetailPage() {
             <div className="sticky top-6">
               <h2 className="text-lg font-semibold mb-4">Participants</h2>
               <ParticipantsList
-                participants={mockData.participants}
+                participants={participants}
                 winnerId={tender.winner}
                 isOwner={isOwner}
                 tenderId={id as string}
@@ -215,7 +128,7 @@ export default function TenderDetailPage() {
             <div className="border-t pt-4">
               <h2 className="text-lg font-semibold mb-2">Participants</h2>
               <ParticipantsList
-                participants={mockData.participants}
+                participants={participants}
                 winnerId={tender.winner}
                 isOwner={isOwner}
                 tenderId={id as string}
@@ -230,7 +143,7 @@ export default function TenderDetailPage() {
                 {isRegistered ? "Tender Documents" : "Registration Documents"}
               </h2>
               <DocumentList
-                documents={isRegistered ? tenderDocuments : registrationDocuments}
+                documents={isRegistered ? documents.tenderDocuments : documents.registrationDocuments}
                 isRegistered={isRegistered}
                 isActive={tender.isActive}
                 typeOfFile={isRegistered ? "Tender" : "Registration"}
@@ -289,7 +202,7 @@ export default function TenderDetailPage() {
                 <h2 className="text-lg font-semibold mb-2">Registration Documents</h2>
                 <DocumentList
                   typeOfFile="Registration"
-                  documents={registrationDocuments}
+                  documents={documents.registrationDocuments}
                   isRegistered={isRegistered}
                   isActive={tender.isActive}
                   iconSize={8}

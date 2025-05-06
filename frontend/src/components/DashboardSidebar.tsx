@@ -95,20 +95,12 @@ export function DashboardSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/settings")}>
-              <Link to="/settings">
-                <Settings className="size-4" />
-                <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="h-10 mb-5">
+      <SidebarFooter className="absolute bottom-0 left-0 right-0 p-4 h-auto">
         <SidebarMenu>
-          <SidebarMenuItem className="flex justify-center">
-            <SidebarMenuButton>
+          <SidebarMenuItem>
+            <SidebarMenuButton className="w-full">
               <ConnectButton />
             </SidebarMenuButton>
           </SidebarMenuItem>
