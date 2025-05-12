@@ -70,7 +70,6 @@ export default function SearchTenders() {
               startDate={tender.startDate}
               endDate={tender.endDate}
               winner={tender.winner}
-              isActive={tender.isActive}
             />
           ))}
         </div>

@@ -67,9 +67,19 @@ contract TenderManager {
 
     function addParticipant(
         string memory tenderId,
-        address owner,
-        address participant
+        address participant,
+        uint8 v,
+        bytes32 r,
+        bytes32 s,
+        uint256 deadline
     ) external {
+        bytes32 messageHash = keccak256(abi.encodePacked(tenderId, deadline));
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+
+        // Recover signer
+        address owner = ecrecover(ethSignedMessageHash, v, r, s);
+        
+        require(owner != address(0), "Invalid signature");
         require(tenderToOwner[tenderId] == owner, "Only owner can add participants");
         require(block.timestamp >= tenders[owner][tenderId].startDate, "Tender has not started");
         require(block.timestamp <= tenders[owner][tenderId].endDate, "Tender has ended");
@@ -115,10 +125,10 @@ contract TenderManager {
         address winner,
         bool isActive
     ) {
-        address owner = tenderToOwner[tenderId];
-        require(owner != address(0), "Tender does not exist");
+        address tenderOwner = tenderToOwner[tenderId];
+        require(tenderOwner != address(0), "Tender does not exist");
         
-        Tender memory tender = tenders[owner][tenderId];
+        Tender memory tender = tenders[tenderOwner][tenderId];
         bool isActive = block.timestamp >= tender.startDate && block.timestamp <= tender.endDate;
         
         return (

@@ -6,7 +6,7 @@ async function main() {
 
     console.log(`Deploying ${contractBeingDeployed} smart contract...`);
     
-    const contract = await Contract.deploy("0x03ccB59DF6ab6188025F5250303eFe895B9048A7");
+    const contract = await Contract.deploy("0x5B609D6FC604fBCF1f8b3d7eDf6b678a903EC989");
     // const contract = await Contract.deploy();
 
     console.log("smart contract address: ", contract.address)

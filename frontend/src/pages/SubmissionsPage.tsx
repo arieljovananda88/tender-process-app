@@ -3,12 +3,14 @@
 import { useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, User, Building, FileText, File, FileImage, FileSpreadsheet } from "lucide-react"
 import { Link } from "react-router-dom"
 import { formatDate } from "@/lib/utils"
-import { useDocumentStore } from "@/hooks/useContracts"
+import { useDocumentStore, useTenderManager } from "@/hooks/useContracts"
 import { useEffect, useState } from "react"
+import { useAccount } from "wagmi"
+import { toast } from "react-toastify"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type Document = {
   documentCid: string;
@@ -39,32 +41,81 @@ const getFileIcon = (fileType: string) => {
 
 export default function ParticipantSubmissionsPage() {
   const params = useParams()
-  // const navigate = useNavigate()
-  // const { address } = useAccount()
+  const { address } = useAccount()
   const tenderId = params.id as string
   const participantAddress = params.address as string
   const { fetchParticipantDocuments } = useDocumentStore()
+  const { isPendingParticipant, addParticipant } = useTenderManager()
+  const [isPending, setIsPending] = useState(false)
   const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[] }>({
     registrationDocuments: [],
     tenderDocuments: []
   });
 
   useEffect(() => {
-    const loadDocuments = async () => {
+    const loadData = async () => {
       if (tenderId && participantAddress) {
         const docs = await fetchParticipantDocuments(tenderId, participantAddress);
         if (docs) {
           setDocuments(docs);
         }
+        console.log(tenderId, participantAddress)
+        const pending = await isPendingParticipant(tenderId, participantAddress);
+        setIsPending(pending); 
       }
     };
-    loadDocuments();
-  }, [tenderId, participantAddress, fetchParticipantDocuments]);
+    loadData();
+  }, []);
 
   const handleDownload = (doc: Document) => {
     const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
     window.open(ipfsUrl, '_blank');
   };
+
+  const handleAddParticipant = async () => {
+    try {
+      if (!address) {
+        toast.error("Please connect your wallet");
+        return;
+      }
+      await addParticipant(tenderId, participantAddress);
+      toast.success("Participant added successfully");
+      setIsPending(false);
+    } catch (error) {
+      console.error("Error adding participant:", error);
+      toast.error("Failed to add participant");
+    }
+  };
+
+  const renderDocuments = (docs: Document[]) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {docs.length === 0 ? (
+        <div className="col-span-2 text-center py-8 text-muted-foreground">
+          No documents have been uploaded
+        </div>
+      ) : (
+        docs.map((doc) => (
+          <div key={doc.documentCid} className="border rounded-lg overflow-hidden hover:border-primary transition-colors">
+            <div className="p-4">
+              <div className="flex items-start space-x-3">
+                {getFileIcon(doc.documentName.split('.').pop() || '')}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-base truncate">{doc.documentName}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Uploaded at {formatDate(doc.submissionDate)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <Button size="sm" onClick={() => handleDownload(doc)}>Download</Button>
+              </div>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
 
   return (
     <div className="container mx-auto py-6 max-w-5xl">
@@ -82,7 +133,14 @@ export default function ParticipantSubmissionsPage() {
         {/* Participant Information Card */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-xl">Participant's Submissions</CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl">Participant's Submissions</CardTitle>
+              {isPending && (
+                <Button onClick={handleAddParticipant}>
+                  Add to Tender
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -120,67 +178,25 @@ export default function ParticipantSubmissionsPage() {
           </CardContent>
         </Card>
 
-        {/* Documents Tabs */}
-        <Tabs defaultValue="tender" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="tender">Tender Documents</TabsTrigger>
-            <TabsTrigger value="registration">Registration Documents</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="tender" className="mt-6">
-            <h2 className="text-lg font-semibold mb-4">Tender Documents</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {documents.tenderDocuments.map((doc) => (
-                <Card key={doc.documentCid} className="overflow-hidden hover:border-primary transition-colors">
-                  <CardContent className="p-0">
-                    <div className="p-4">
-                      <div className="flex items-start space-x-3">
-                        {getFileIcon(doc.documentName.split('.').pop() || '')}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-base truncate">{doc.documentName}</h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Uploaded at {formatDate(doc.submissionDate)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex justify-end">
-                        <Button size="sm" onClick={() => handleDownload(doc)}>Download</Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="registration" className="mt-6">
-            <h2 className="text-lg font-semibold mb-4">Registration Documents</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {documents.registrationDocuments.map((doc) => (
-                <Card key={doc.documentCid} className="overflow-hidden hover:border-primary transition-colors">
-                  <CardContent className="p-0">
-                    <div className="p-4">
-                      <div className="flex items-start space-x-3">
-                        {getFileIcon(doc.documentName.split('.').pop() || '')}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-base truncate">{doc.documentName}</h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Uploaded at {formatDate(doc.submissionDate)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex justify-end">
-                        <Button size="sm" onClick={() => handleDownload(doc)}>Download</Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+        {isPending ? (
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold">Registration Documents</h2>
+            {renderDocuments(documents.registrationDocuments)}
+          </div>
+        ) : (
+          <Tabs defaultValue="tender" className="w-full">
+            <TabsList className="w-full">
+              <TabsTrigger value="tender" className="flex-1">Tender Documents</TabsTrigger>
+              <TabsTrigger value="registration" className="flex-1">Registration Documents</TabsTrigger>
+            </TabsList>
+            <TabsContent value="registration" className="space-y-6 mt-6">
+              {renderDocuments(documents.registrationDocuments)}
+            </TabsContent>
+            <TabsContent value="tender" className="space-y-6 mt-6">
+              {renderDocuments(documents.tenderDocuments)}
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </div>
   )

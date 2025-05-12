@@ -15,7 +15,7 @@ interface Document {
 }
 
 const DashboardPage: React.FC = () => {
-  const { address, isConnected } = useAccount();
+  // const { address, isConnected } = useAccount();
   const [message, setMessage] = useState<string>("Hello Blockchain!");
   const [encryptedData, setEncryptedData] = useState<string>("");
   const [decryptedMessage, setDecryptedMessage] = useState<string>("");
@@ -85,10 +85,10 @@ const DashboardPage: React.FC = () => {
 
   const fetchMyDocumentsFromTender2 = async (): Promise<void> => {
     try {
-      if (!address || !isConnected) {
-        alert("Please connect your wallet first.");
-        return;
-      }
+      // if (!address || !isConnected) {
+      //   alert("Please connect your wallet first.");
+      //   return;
+      // }
 
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer = provider.getSigner();
@@ -109,10 +109,10 @@ const DashboardPage: React.FC = () => {
 
   const fetchDocumentsFromTender2 = async (): Promise<void> => {
     try {
-      if (!address || !isConnected) {
-        alert("Please connect your wallet first.");
-        return;
-      }
+      // if (!address || !isConnected) {
+      //   alert("Please connect your wallet first.");
+      //   return;
+      // }
 
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer = provider.getSigner();

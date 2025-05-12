@@ -2,7 +2,6 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Trophy } from "lucide-react"
-import { shortenAddress } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
 
 interface Participant {
@@ -12,12 +11,13 @@ interface Participant {
 
 interface ParticipantsListProps {
   isOwner: boolean
+  forPending: boolean
   participants: Participant[]
   winnerId: string
   tenderId: string
 }
 
-export function ParticipantsList({ isOwner, participants, winnerId, tenderId }: ParticipantsListProps) {
+export function ParticipantsList({ isOwner, forPending = false, participants, winnerId, tenderId }: ParticipantsListProps) {
   const navigate = useNavigate()
 
   const handleViewSubmissions = (participantAddress: string) => {
@@ -27,7 +27,9 @@ export function ParticipantsList({ isOwner, participants, winnerId, tenderId }: 
   return (
     <div className="space-y-3">
       {participants.length === 0 ? (
-        <p className="text-center text-muted-foreground py-4">No participants yet</p>
+        <p className="text-center text-muted-foreground py-4">
+          {forPending ? "No pending participants" : "No participants yet"}
+        </p>
       ) : (
         participants.map((participant, index) => {
           const isWinner = participant.address === winnerId
@@ -38,7 +40,7 @@ export function ParticipantsList({ isOwner, participants, winnerId, tenderId }: 
                 <div className="p-4">
                   <div className="flex flex-col mb-2">
                     <span className="text-xs text-muted-foreground mb-1" title={participant.address}>
-                      {shortenAddress(participant.address)}
+                      {participant.address}
                     </span>
                     <div className="flex items-center">
                       <h3 className="font-medium truncate">"name"</h3>

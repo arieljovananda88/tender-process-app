@@ -46,6 +46,11 @@ export interface IsRegisteredResponse {
   isRegistered: boolean;
 }
 
+export interface AddParticipantResponse {
+  success: boolean;
+  message: string;
+}
+
 export async function getAllTenders(page: number = 1, pageSize: number = 10): Promise<PaginatedResponse<Tender>> {
   const response = await axios.get(`${API_BASE_URL}/tender`, {
     params: {
@@ -83,4 +88,24 @@ export async function getNonce(address: string): Promise<string> {
 export async function verifySignature(address: string, signature: string): Promise<AuthResponse> {
   const res = await axios.post<AuthResponse>(`${API_BASE_URL}/auth/verify`, { address, signature });
   return res.data;
+}
+
+export async function addParticipant(
+  tenderId: string,
+  participant: string,
+  deadline: number,
+  v: number,
+  r: string,
+  s: string,
+  signer: string
+): Promise<AddParticipantResponse> {
+  const response = await axios.post<AddParticipantResponse>(`${API_BASE_URL}/tender/${tenderId}/participants`, {
+    participant,
+    deadline,
+    v,
+    r,
+    s,
+    signer
+  });
+  return response.data;
 }

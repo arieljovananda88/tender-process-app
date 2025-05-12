@@ -10,6 +10,7 @@ import { getTenderById, type Tender } from "@/lib/api"
 import { formatDate, shortenAddress, calculateTimeRemaining } from "@/lib/utils"
 import { useAccount } from "wagmi";
 import { useTenderManager, useDocumentStore } from '@/hooks/useContracts';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 export default function TenderDetailPage() {
   const { id } = useParams()
@@ -20,7 +21,7 @@ export default function TenderDetailPage() {
   
   const { documents, fetchDocuments } = useDocumentStore();
 
-  const { isPending, isRegistered, checkRegistrationStatus, participants } = useTenderManager();
+  const { isPending, isRegistered, checkRegistrationStatus, participants, pendingParticipants } = useTenderManager();
 
   const isOwner = address?.toLowerCase() === tender?.owner.toLowerCase()
   const isActive = tender ? new Date(tender.endDate).getTime() > Date.now() : false
@@ -77,16 +78,32 @@ export default function TenderDetailPage() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
         {/* Left sidebar - Participants (only for non-owners) */}
         {!isOwner && (
-          <div className="xl:col-span-3 space-y-6">
-            <div className="sticky top-6">
-              <h2 className="text-lg font-semibold mb-4">Participants</h2>
-              <ParticipantsList
-                participants={participants}
-                winnerId={tender.winner}
-                isOwner={isOwner}
-                tenderId={id as string}
-              />
-            </div>
+          <div className="xl:col-span-3">
+            <h2 className="text-lg font-semibold mb-4">Participants</h2>
+            <Tabs defaultValue="participants" className="w-full">
+              <TabsList className="w-full">
+                <TabsTrigger value="participants" className="flex-1">Participants</TabsTrigger>
+                <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
+              </TabsList>
+              <TabsContent value="participants" className="space-y-6 mt-6">
+                <ParticipantsList
+                  forPending={false}
+                  participants={participants}
+                  winnerId={tender.winner}
+                  isOwner={isOwner}
+                  tenderId={id as string}
+                />
+              </TabsContent>
+              <TabsContent value="pending" className="space-y-6 mt-6">
+                <ParticipantsList
+                  forPending={true}
+                  participants={pendingParticipants}
+                  winnerId={tender.winner}
+                  isOwner={isOwner}
+                  tenderId={id as string}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         )}
 
@@ -127,15 +144,29 @@ export default function TenderDetailPage() {
 
           {/* Participants (only for owners) */}
           {isOwner && (
+            <>
             <div className="border-t pt-4">
               <h2 className="text-lg font-semibold mb-2">Participants</h2>
               <ParticipantsList
+                forPending={false}
                 participants={participants}
                 winnerId={tender.winner}
                 isOwner={isOwner}
                 tenderId={id as string}
               />
             </div>
+            <div className="border-t pt-4">
+            <h2 className="text-lg font-semibold mb-2">Pending Participants</h2>
+            <ParticipantsList
+              forPending={true}
+              participants={pendingParticipants}
+              winnerId={tender.winner}
+              isOwner={isOwner}
+              tenderId={id as string}
+            />
+          </div>
+          </>
+
           )}
 
           {/* Documents Section - Changes based on registration status */}

@@ -77,18 +77,28 @@ export async function createTender(req: Request, res: Response) {
 
 export async function addParticipant(req: Request, res: Response) {
     const tenderManager = getTenderManagerContractInstance();
+
     try {
         const { tenderId } = req.params;
-        const { owner, participant } = req.body;
+        const { 
+        participant,
+        deadline,
+        v,
+        r,
+        s,
+        signer } = req.body;
 
-        if (!tenderId || !owner || !participant) {
+        if (!tenderId || !signer || !participant || !deadline || !v || !r || !s) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
         const tx = await tenderManager.addParticipant(
             tenderId,
-            owner,
-            participant
+            participant,
+            v,
+            r,
+            s,
+            deadline
         );
         await tx.wait();
 
