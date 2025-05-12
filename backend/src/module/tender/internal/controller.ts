@@ -228,7 +228,7 @@ export async function getParticipants(req: Request, res: Response) {
             return res.status(404).json({ error: "Tender not found" });
         }
 
-        const participants = await tenderManager.getParticipants(tenderId);
+        const participants = await tenderManager.getPendingParticipants(tenderId);
 
         return res.status(200).json({
             success: true,

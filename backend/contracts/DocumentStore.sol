@@ -56,6 +56,50 @@ contract DocumentStore {
         emit DocumentUploaded(tenderId, contestant, documentCid, documentName, block.timestamp);
     }
 
+    function uploadDocumentWithSignature(
+        string memory tenderId,
+        string memory documentCid,
+        string memory documentName,
+        string memory documentType,
+        uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) public {
+        // Create the message hash
+        bytes32 messageHash = keccak256(abi.encodePacked(tenderId, documentCid, documentName, documentType, deadline));
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+
+        // Recover signer
+        address signer = ecrecover(ethSignedMessageHash, v, r, s);
+        require(signer != address(0), "Invalid signature");
+
+        // Check deadline to avoid replay
+        require(block.timestamp <= deadline, "Signature expired");
+
+        // Validate participant
+        if (keccak256(bytes(documentType)) == keccak256(bytes("tender"))) {
+            require(
+                tenderManager.isParticipant(tenderId, signer),
+                "Only participants can upload tender documents"
+            );
+        }
+
+        Document memory newDocument = Document({
+            documentCid: documentCid,
+            documentName: documentName,
+            documentType: documentType,
+            submissionDate: block.timestamp
+        });
+
+        tenderDocuments[tenderId][signer].push(newDocument);
+
+        if (!tenderManager.isParticipant(tenderId, signer) && !tenderManager.isPendingParticipant(tenderId, signer)) {
+            tenderManager.addPendingParticipant(tenderId, signer);
+        }
+
+        emit DocumentUploaded(tenderId, signer, documentCid, documentName, block.timestamp);
+    }
+
+
     function getMyDocuments(string memory tenderId) public view returns (Document[] memory) {
         return tenderDocuments[tenderId][msg.sender];
     }

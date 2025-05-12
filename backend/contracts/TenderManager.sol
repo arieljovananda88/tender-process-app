@@ -9,7 +9,6 @@ contract TenderManager {
         uint256 startDate;
         uint256 endDate;
         address winner;
-        bool isActive;
     }
 
     // Nested mapping: owner => tenderId => Tender
@@ -34,7 +33,6 @@ contract TenderManager {
     event TenderCreated(string indexed tenderId, address owner, string name);
     event ParticipantAdded(string indexed tenderId, address participant);
     event WinnerSelected(string indexed tenderId, address winner);
-    event TenderFinished(string indexed tenderId, address winner);
 
     function getOwner(string memory tenderId) external view returns (address) {
         return tenderToOwner[tenderId];
@@ -56,8 +54,7 @@ contract TenderManager {
             description: description,
             startDate: startDate,
             endDate: endDate,
-            winner: address(0),
-            isActive: true
+            winner: address(0)
         });
 
         // Add to tracking arrays and mappings
@@ -74,7 +71,6 @@ contract TenderManager {
         address participant
     ) external {
         require(tenderToOwner[tenderId] == owner, "Only owner can add participants");
-        require(tenders[owner][tenderId].isActive, "Tender is not active");
         require(block.timestamp >= tenders[owner][tenderId].startDate, "Tender has not started");
         require(block.timestamp <= tenders[owner][tenderId].endDate, "Tender has ended");
         require(!participants[tenderId][participant], "Already a participant");
@@ -96,25 +92,12 @@ contract TenderManager {
         emit ParticipantAdded(tenderId, participant);
     }
 
-     function finishTender(
-        string memory tenderId,
-        address owner
-    ) external {
-        require(tenders[owner][tenderId].isActive, "Tender is already inactive");
-        require(block.timestamp > tenders[owner][tenderId].endDate, "Tender has not ended");
-
-        tenders[owner][tenderId].isActive = false;
-        emit TenderFinished(tenderId, winner);
-    }
-
-
     function selectWinner(
         string memory tenderId,
         address owner,
         address winner
     ) external {
         require(tenderToOwner[tenderId] == owner, "Only owner can select winner");
-        require(!tenders[owner][tenderId].isActive, "Tender is still active");
         require(block.timestamp > tenders[owner][tenderId].endDate, "Tender has not ended");
         require(participants[tenderId][winner], "Winner must be a participant");
         require(tenders[owner][tenderId].winner == address(0), "Winner already selected");
@@ -136,6 +119,8 @@ contract TenderManager {
         require(owner != address(0), "Tender does not exist");
         
         Tender memory tender = tenders[owner][tenderId];
+        bool isActive = block.timestamp >= tender.startDate && block.timestamp <= tender.endDate;
+        
         return (
             tender.owner,
             tender.name,
@@ -143,7 +128,7 @@ contract TenderManager {
             tender.startDate,
             tender.endDate,
             tender.winner,
-            tender.isActive
+            isActive
         );
     }
 

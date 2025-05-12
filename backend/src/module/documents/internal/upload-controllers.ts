@@ -40,58 +40,23 @@ async function uploadEncryptedDocument(contract: any, tenderID: string, address:
 }
 
 async function uploadDocument(req: any, res: any) {
-  const documentStore = getDocumentStoreContractInstance();
-  const publicKeyStorage = getPublicKeyStoregeContractInstance();
-  const tenderManager = getTenderManagerContractInstance();
-
   handleFileUpload(req, res, async function(err: any) {
     const { file } = req;
     const fileName = req.body.file_name;
-    const submitterAddress = req.body.address;
-    const tenderID = req.body.tender_id
-    const type = req.body.type
-    if (!tenderID){
-      return res.status(400).json({ error: "tender id should be provided"});
-    }
-    const tenderIDBytes = ethers.utils.formatBytes32String(tenderID);
 
     if (err || !file) {
       return res.status(400).json({ error: err ? 'File upload failed' : 'No file provided' });
     }
 
     try {
-      // encrypt file here also for double 
       const ipfsResult = await uploadToIPFS(file.path, file.originalname);
       const cid = ipfsResult.cid.toString();
-
-      // const [submitterPubKey, organizerAddress] = await Promise.all([
-      //   publicKeyStorage.getPublicKey(submitterAddress),
-      //   tenderManager.getOwner(tenderIDBytes)
-      // ]);
-
-      // if (!submitterPubKey) {
-      //   return res.status(400).json({ error: "Submitter address not found" });
-      // }
-
-      // const organizerPubKey = await publicKeyStorage.getPublicKey(organizerAddress);
-      // const encryptedCidSubmitter = await handleEncrypt(submitterPubKey, cid);
-      // const encryptedCidOrganizer = await handleEncrypt(organizerPubKey, cid);
-
-      // await uploadEncryptedDocument(documentStore, tenderIDBytes, submitterAddress, encryptedCidSubmitter, fileName, "registration");
-      // await uploadEncryptedDocument(documentStore, tenderIDBytes, organizerAddress, encryptedCidOrganizer, fileName, "registration");
-
-      // Instead, just upload the plain CID for both submitter and organizer
-      const organizerAddress = await tenderManager.getOwner(tenderID);
-      await uploadEncryptedDocument(documentStore, tenderID, submitterAddress, cid, fileName, type);
-      await uploadEncryptedDocument(documentStore, tenderID, organizerAddress, cid, fileName, type);
 
       return res.status(200).json({
         success: true,
         ipfsUri: `ipfs://${cid}`,
         ipfsGatewayUrl: `${process.env.IPFS_GATEWAY || 'https://ipfs.io/ipfs/'}${cid}`,
         filename: file.originalname,
-        // encryptedCid: `This is your encryptedCid: ${encryptedCidSubmitter}`,
-        type: type,
         cid: cid,
         size: file.size,
         mimetype: file.mimetype,
@@ -104,6 +69,49 @@ async function uploadDocument(req: any, res: any) {
   });
 }
 
+async function uploadDocumentWithSignature(req: any, res: any) {
+  const documentStore = getDocumentStoreContractInstance();
+  const {
+    tenderId,
+    documentCid,
+    documentName,
+    documentType,
+    deadline,
+    v,
+    r,
+    s,
+    signer
+  } = req.body;
+
+  if (!tenderId || !documentCid || !documentName || !documentType || !deadline || !v || !r || !s || !signer) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    const tx = await documentStore.uploadDocumentWithSignature(
+      tenderId,
+      documentCid,
+      documentName,
+      documentType,
+      deadline,
+      v,
+      r,
+      s
+    );
+    await tx.wait();
+
+    return res.status(200).json({
+      success: true,
+      message: "Document uploaded successfully with signature",
+      transactionHash: tx.hash
+    });
+  } catch (error: any) {
+    console.error("Upload document with signature error:", error);
+    res.status(500).json({ error: "Internal server error", details: error.message });
+  }
+}
+
 export const uploadDocumentController = {
-  uploadDocument
+  uploadDocument,
+  uploadDocumentWithSignature
 };

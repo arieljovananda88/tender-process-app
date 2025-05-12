@@ -26,6 +26,7 @@ const App: React.FC = () => {
           theme="light"
         />
         <Routes>
+          <Route path="/" element={<Navigate to="/auth" replace />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/register" element={<RegisterPage />} />
           

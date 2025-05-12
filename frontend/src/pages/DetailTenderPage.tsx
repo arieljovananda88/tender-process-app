@@ -19,9 +19,11 @@ export default function TenderDetailPage() {
   const [error, setError] = useState<string | null>(null)
   
   const { documents, fetchDocuments } = useDocumentStore();
+
   const { isPending, isRegistered, checkRegistrationStatus, participants } = useTenderManager();
 
   const isOwner = address?.toLowerCase() === tender?.owner.toLowerCase()
+  const isActive = tender ? new Date(tender.endDate).getTime() > Date.now() : false
 
   useEffect(() => {
     const fetchTender = async () => {
@@ -92,8 +94,8 @@ export default function TenderDetailPage() {
         <div className={`space-y-6 ${isOwner ? 'xl:col-span-12' : 'xl:col-span-6'}`}>
           <div className="flex justify-between items-start">
             <h1 className="text-2xl font-bold">{tender.name}</h1>
-            <Badge className={tender.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-              {tender.isActive ? "Active" : "Inactive"}
+            <Badge className={isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+              {isActive ? "Active" : "Finished"}
             </Badge>
           </div>
 
@@ -145,7 +147,7 @@ export default function TenderDetailPage() {
               <DocumentList
                 documents={isRegistered ? documents.tenderDocuments : documents.registrationDocuments}
                 isRegistered={isRegistered}
-                isActive={tender.isActive}
+                isActive={isActive}
                 typeOfFile={isRegistered ? "Tender" : "Registration"}
                 iconSize={10}
                 textSize="base"
@@ -162,7 +164,7 @@ export default function TenderDetailPage() {
             <Card>
               <CardContent className="p-4">
                 <h2 className="text-lg font-semibold mb-3">Application Status</h2>
-                {tender.isActive ? (
+                {isActive ? (
                   <>
                     {isPending ? (
                       <div className="bg-amber-50 text-amber-800 p-3 rounded-md">
@@ -204,7 +206,7 @@ export default function TenderDetailPage() {
                   typeOfFile="Registration"
                   documents={documents.registrationDocuments}
                   isRegistered={isRegistered}
-                  isActive={tender.isActive}
+                  isActive={isActive}
                   iconSize={8}
                   textSize="sm"
                   canUpload={false}

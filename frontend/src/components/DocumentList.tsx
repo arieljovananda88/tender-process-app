@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ethers } from "ethers"
 
 type Document = {
   documentCid: string;
@@ -116,17 +117,62 @@ export function DocumentList({
     formData.append("type", typeOfFile)
   
     try {
-      const response = await fetch("http://localhost:9090/upload-document", {
+      // First upload the file to get the CID
+      const uploadResponse = await fetch("http://localhost:9090/upload-document", {
         method: "POST",
         body: formData,
       })
   
-      if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}`)
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed with status ${uploadResponse.status}`)
       }
   
-      await response.json()
-  
+      const uploadResult = await uploadResponse.json()
+      const documentCid = uploadResult.cid
+      // const documentCid = "dummy"
+
+      // Generate signature
+      const provider = new ethers.providers.Web3Provider(window.ethereum)
+      const signer = provider.getSigner()
+      const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+
+      // Create message hash exactly as the contract does
+      const messageHash = ethers.utils.keccak256(
+        ethers.utils.solidityPack(
+          ["string", "string", "string", "string", "uint256"],
+          [tenderId, documentCid, fileName, typeOfFile, deadline]
+        )
+      )
+
+      // Sign the hash
+      const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
+      const splitSig = ethers.utils.splitSignature(signature)
+
+      // Send signature to backend
+      const signaturePayload = {
+        tenderId,
+        documentCid,
+        documentName: fileName,
+        documentType: typeOfFile,
+        deadline,
+        v: splitSig.v,
+        r: splitSig.r,
+        s: splitSig.s,
+        signer: address
+      }
+
+      const signatureResponse = await fetch("http://localhost:9090/upload-document/signature", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(signaturePayload),
+      })
+
+      if (!signatureResponse.ok) {
+        throw new Error(`Signature upload failed with status ${signatureResponse.status}`)
+      }
+
       // Reset UI
       setSelectedFile(null)
       setFileName("")

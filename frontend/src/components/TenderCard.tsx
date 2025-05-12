@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, User, CheckCircle } from "lucide-react"
 import { Link } from "react-router-dom"
 import { formatDate, shortenAddress } from "@/lib/utils"
+
 interface TenderCardProps {
   id: string
   owner: string
@@ -12,17 +13,18 @@ interface TenderCardProps {
   startDate: string
   endDate: string
   winner: string
-  isActive: boolean
 }
 
-export function TenderCard({ id, owner, name, description, startDate, endDate, winner, isActive }: TenderCardProps) {
+export function TenderCard({ id, owner, name, description, startDate, endDate, winner }: TenderCardProps) {
+  const isActive = new Date(endDate).getTime() > Date.now()
+
   return (
     <Card className="h-full overflow-hidden">
       <CardHeader>
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg font-medium line-clamp-2">{name}</CardTitle>
           <Badge className={isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-            {isActive ? "Active" : "Inactive"}
+            {isActive ? "Active" : "Finished"}
           </Badge>
         </div>
         <div className="text-sm text-muted-foreground flex items-center gap-1">
