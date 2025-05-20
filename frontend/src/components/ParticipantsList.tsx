@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Trophy } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { shortenAddress }  from "@/lib/utils"
 
 interface Participant {
   address: string
@@ -40,7 +41,7 @@ export function ParticipantsList({ isOwner, forPending = false, participants, wi
                 <div className="p-4">
                   <div className="flex flex-col mb-2">
                     <span className="text-xs text-muted-foreground mb-1" title={participant.address}>
-                      {participant.address}
+                      {shortenAddress(participant.address)}
                     </span>
                     <div className="flex items-center">
                       <h3 className="font-medium truncate">"name"</h3>

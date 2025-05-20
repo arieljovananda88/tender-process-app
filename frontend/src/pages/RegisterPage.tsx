@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { registerUser } from '@/lib/api';
+import saveToIndexedDB from '@/hooks/useIndexedDB';
 
 interface FormData {
   name: string;
@@ -37,11 +38,33 @@ const RegisterPage: React.FC = () => {
         throw new Error('Please install MetaMask');
       }
 
+      // Generate key pair
+      const keyPair = await crypto.subtle.generateKey(
+        {
+          name: "ECDH",
+          namedCurve: "P-256",
+        },
+        true,
+        ["deriveKey"]
+      );
+
+      // Export keys
+      const pubJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+      const privJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
+
+      // Store private key
+      await saveToIndexedDB(privJwk);
+
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer = provider.getSigner();
       const address = await signer.getAddress();
 
-      const response = await registerUser(formData.name, formData.email, address);
+      const response = await registerUser(
+        formData.name, 
+        formData.email, 
+        address,
+        JSON.stringify(pubJwk)
+      );
 
       if (response.success) {
         alert('Registration successful!');

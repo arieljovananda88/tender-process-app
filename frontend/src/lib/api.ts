@@ -66,11 +66,12 @@ export async function getTenderById(id: string): Promise<TenderResponse> {
   return response.data;
 }
 
-export async function registerUser(name: string, email: string, address: string): Promise<RegisterResponse> {
+export async function registerUser(name: string, email: string, address: string, publicKey: string): Promise<RegisterResponse> {
   const response = await axios.post<RegisterResponse>(`${API_BASE_URL}/auth/register`, {
     name,
     email,
     address,
+    publicKey
   });
   return response.data;
 }

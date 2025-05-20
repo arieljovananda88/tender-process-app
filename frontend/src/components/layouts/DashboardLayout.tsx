@@ -5,14 +5,14 @@ import { useAccount } from "wagmi"
 import { useEffect } from "react"
 
 export function DashboardLayout() {
-  const navigate = useNavigate()
+  // const navigate = useNavigate()
   
-  const { isConnected } = useAccount()
-  useEffect(() => {
-    if (!isConnected) {
-      navigate("/login")
-    }
-  }, [isConnected])
+  // const { isConnected } = useAccount()
+  // useEffect(() => {
+  //   if (!isConnected) {
+  //     navigate("/login")
+  //   }
+  // }, [isConnected])
 
   return (
     <SidebarProvider defaultOpen={true}>
