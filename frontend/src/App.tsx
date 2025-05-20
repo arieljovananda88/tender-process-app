@@ -8,7 +8,7 @@ import { DashboardLayout } from './components/layouts/DashboardLayout';
 import SearchTenderPage from './pages/SearchTenderPage';
 import TenderDetailPage from './pages/DetailTenderPage';
 import SubmissionsPage from './pages/SubmissionsPage';
-
+import MyTenders from './pages/MyTenderPage';
 const App: React.FC = () => {
   return (
     <Router>
@@ -34,7 +34,7 @@ const App: React.FC = () => {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/tenders/search" element={<SearchTenderPage />} />
             <Route path="/tenders/registered" element={<div>Registered Tenders Page</div>} />
-            <Route path="/my-tenders" element={<div>My Tenders Page</div>} />
+            <Route path="/my-tenders" element={<MyTenders />} />
             <Route path="/tenders/:id" element={<TenderDetailPage />} />
             <Route path="/tenders/:id/submissions/:address" element={<SubmissionsPage />} />
             {/* <Route path="/settings" element={SearchTenderPage} /> */}

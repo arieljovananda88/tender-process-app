@@ -51,12 +51,41 @@ export interface AddParticipantResponse {
   message: string;
 }
 
+export interface CreateTenderResponse {
+  success: boolean;
+  message: string;
+  tenderId: string;
+}
+
 export async function getAllTenders(page: number = 1, pageSize: number = 10): Promise<PaginatedResponse<Tender>> {
   const response = await axios.get(`${API_BASE_URL}/tender`, {
     params: {
       page,
       pageSize
     }
+  });
+  return response.data;
+}
+
+export async function createTender( 
+  name: string,
+  description: string,
+  startDate: string,
+  endDate: string,
+  deadline: number,
+  v: number,
+  r: string,
+  s: string,
+  ): Promise<CreateTenderResponse> {
+  const response = await axios.post<CreateTenderResponse>(`${API_BASE_URL}/tender`, {
+    name: name,
+    description: description,
+    startDate: startDate,
+    endDate: endDate,
+    deadline: deadline,
+    v: v,
+    r: r,
+    s: s,
   });
   return response.data;
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
-import axios from 'axios';
 import TenderManagerArtifact from '../../../backend/artifacts/contracts/TenderManager.sol/TenderManager.json';
 import DocumentStoreArtifact from '../../../backend/artifacts/contracts/DocumentStore.sol/DocumentStore.json';
 import { addParticipant as addParticipantApi } from '../lib/api';
@@ -19,7 +18,7 @@ interface Participant {
   }
 
 export function useTenderManager() {
-  const { address, isConnected } = useAccount();
+  const { address } = useAccount();
   const [isPending, setIsPending] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -164,11 +163,6 @@ export function useDocumentStore() {
   };
 
   const fetchParticipantDocuments = async (tenderId: string, participantAddress: string) => {
-    // if (!address || !isConnected) {
-    //   alert("Please connect your wallet first.");
-    //   return;
-    // }
-
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer = provider.getSigner();
