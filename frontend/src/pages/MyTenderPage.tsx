@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { SearchHeader } from "@/components/SearchHeader"
 import { TenderCard } from "@/components/TenderCard"
-import { createTender, getAllTenders, type Tender } from "@/lib/api"
+import { createTender, getMyTenders, type Tender } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { useAccount } from "wagmi"
 import { ethers } from "ethers"
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { toast } from "react-toastify"
 
 interface TenderFormData {
   name: string;
@@ -23,6 +24,7 @@ interface TenderFormData {
 }
 
 export default function MyTenders() {
+  const { address } = useAccount();
   const [tenders, setTenders] = useState<Tender[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -61,11 +63,17 @@ export default function MyTenders() {
       const signature = await signer.signMessage(ethers.utils.arrayify(messageHash));
       const { v, r, s } = ethers.utils.splitSignature(signature);
 
+      // Format dates to ISO string with time set to midnight UTC
+      const startDate = new Date(formData.startDate);
+      startDate.setUTCHours(0, 0, 0, 0);
+      const endDate = new Date(formData.endDate);
+      endDate.setUTCHours(0, 0, 0, 0);
+
       const response = await createTender(
         formData.name,
         formData.description,
-        Math.floor(new Date(formData.startDate).getTime() / 1000).toString(),
-        Math.floor(new Date(formData.endDate).getTime() / 1000).toString(),
+        startDate.toISOString(),
+        endDate.toISOString(),
         deadline,
         v,
         r,
@@ -75,10 +83,11 @@ export default function MyTenders() {
       if (response.success) {
         setIsDialogOpen(false);
         // Refresh tenders list
-        const updatedTenders = await getAllTenders();
-        if (updatedTenders.success) {
-          setTenders(updatedTenders.tenders);
+        const tenders = await getMyTenders(address as string);
+        if (tenders) {
+          setTenders(tenders);
         }
+        toast.success("Tender created successfully")
       } else {
         alert('Failed to create tender');
       }
@@ -93,12 +102,9 @@ export default function MyTenders() {
   useEffect(() => {
     const fetchTenders = async () => {
       try {
-        const response = await getAllTenders()
-        console.log(response)
-        if (response.success) {
-          // Convert ISO date strings to Unix timestamps
-          const formattedTenders = response.tenders
-          setTenders(formattedTenders)
+        const tenders = await getMyTenders(address as string)
+        if (tenders) {
+          setTenders(tenders)
         } else {
           setError("Failed to fetch tenders")
         }
@@ -178,7 +184,7 @@ export default function MyTenders() {
                     <Input
                       id="startDate"
                       name="startDate"
-                      type="datetime-local"
+                      type="date"
                       value={formData.startDate}
                       onChange={handleInputChange}
                     />
@@ -188,7 +194,7 @@ export default function MyTenders() {
                     <Input
                       id="endDate"
                       name="endDate"
-                      type="datetime-local"
+                      type="date"
                       value={formData.endDate}
                       onChange={handleInputChange}
                     />
@@ -218,7 +224,6 @@ export default function MyTenders() {
               description={tender.description}
               startDate={tender.startDate}
               endDate={tender.endDate}
-              winner={tender.winner}
             />
           ))}
         </div>

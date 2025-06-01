@@ -2,41 +2,25 @@ import fs from "fs";
 import { ethers } from "ethers";
 import { encrypt } from "eciesjs";
 import { initIPFSClient, handleFileUpload } from "./commons";
-import { getDocumentStoreContractInstance, getPublicKeyStoregeContractInstance, getTenderManagerContractInstance } from "../../../commons/contract-clients";
+import { getDocumentStoreContractInstance } from "../../../commons/contract-clients";
 
-// Helper: Encrypt CID using ECIES
-// const handleEncrypt = async (publicKey: string, cid: string) => {
-//   try {
-//     const rawPublicKey = extractRawPublicKey(publicKey);
-//     return encrypt(rawPublicKey, Buffer.from(cid)).toString("hex");
-//   } catch (error) {
-//     console.error("Encryption error:", error);
-//     throw new Error("Encryption failed");
-//   }
-// };
+const dummyPrivateKey = "";
+const wallet = new ethers.Wallet(dummyPrivateKey);
+const dummyPublicKey = Buffer.from(wallet.publicKey.slice(2), 'hex');
 
-// Helper: Extract EC public key point from ASN.1 string
-// function extractRawPublicKey(asn1Hex: string): Buffer {
-//   const hex = asn1Hex.replace(/^0x/, '');
-//   const match = hex.match(/04([0-9a-fA-F]{128})(?:[^0-9a-fA-F]|$)/);
-//   if (match) return Buffer.from('04' + match[1], 'hex');
-//   throw new Error('Invalid EC public key format');
-// }
 
-// Helper: Upload file to IPFS and return result
 async function uploadToIPFS(filePath: string, fileName: string) {
   const { create } = await import("ipfs-http-client");
   const ipfs = initIPFSClient(create);
+  
+  // Read and encrypt file contents
   const fileContent = fs.readFileSync(filePath);
-  const result = await ipfs.add({ path: fileName, content: fileContent });
+  const encryptedContent = encrypt(dummyPublicKey, fileContent);
+  
+  // Upload encrypted content
+  const result = await ipfs.add({ path: fileName, content: encryptedContent });
   fs.unlinkSync(filePath); // Cleanup
   return result;
-}
-
-// Helper: Upload encrypted document CID to smart contract
-async function uploadEncryptedDocument(contract: any, tenderID: string, address: string, encryptedCid: string, fileName: string, fileType: string) {
-  const tx = await contract.uploadDocument(tenderID, address, encryptedCid, fileName, fileType);
-  await tx.wait();
 }
 
 async function uploadDocument(req: any, res: any) {
@@ -76,6 +60,8 @@ async function uploadDocumentWithSignature(req: any, res: any) {
     documentCid,
     documentName,
     documentType,
+    participantName,
+    participantEmail,
     deadline,
     v,
     r,
@@ -83,7 +69,7 @@ async function uploadDocumentWithSignature(req: any, res: any) {
     signer
   } = req.body;
 
-  if (!tenderId || !documentCid || !documentName || !documentType || !deadline || !v || !r || !s || !signer) {
+  if (!tenderId || !documentCid || !documentName || !documentType || !participantName || !participantEmail || !deadline || !v || !r || !s || !signer) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -93,6 +79,8 @@ async function uploadDocumentWithSignature(req: any, res: any) {
       documentCid,
       documentName,
       documentType,
+      participantName,
+      participantEmail,
       deadline,
       v,
       r,

@@ -23,14 +23,19 @@ export default function TenderDetailPage() {
 
   const { isPending, isRegistered, checkRegistrationStatus, participants, pendingParticipants } = useTenderManager();
 
+  // Filter out participants who are in both lists
+  const filteredPendingParticipants = pendingParticipants.filter(
+    pending => !participants.some(participant => participant.address.toLowerCase() === pending.address.toLowerCase())
+  );
+
   const isOwner = address?.toLowerCase() === tender?.owner.toLowerCase()
-  const isActive = tender ? new Date(tender.endDate).getTime() > Date.now() : false
+  const isActive = tender ? new Date(Number(tender.endDate) * 1000).getTime() > Date.now() : false
 
   useEffect(() => {
     const fetchTender = async () => {
       try {
-        const response = await getTenderById(id as string)
-        setTender(response.tender)
+        const tender = await getTenderById(id as string)
+        setTender(tender)
       } catch (err) {
         setError("Failed to fetch tender")
       } finally {
@@ -38,14 +43,9 @@ export default function TenderDetailPage() {
       }
     }
     fetchTender()
+    checkRegistrationStatus(id as string);
+    fetchDocuments(id as string);
   }, [id])
-
-  useEffect(() => {
-    if (id) {
-      checkRegistrationStatus(id);
-      fetchDocuments(id);
-    }
-  }, [id, checkRegistrationStatus, fetchDocuments]);
 
   if (loading) {
     return (
@@ -89,7 +89,7 @@ export default function TenderDetailPage() {
                 <ParticipantsList
                   forPending={false}
                   participants={participants}
-                  winnerId={tender.winner}
+                  winnerId={"tes"}
                   isOwner={isOwner}
                   tenderId={id as string}
                 />
@@ -97,8 +97,8 @@ export default function TenderDetailPage() {
               <TabsContent value="pending" className="space-y-6 mt-6">
                 <ParticipantsList
                   forPending={true}
-                  participants={pendingParticipants}
-                  winnerId={tender.winner}
+                  participants={filteredPendingParticipants}
+                  winnerId={"tes"}
                   isOwner={isOwner}
                   tenderId={id as string}
                 />
@@ -150,7 +150,7 @@ export default function TenderDetailPage() {
               <ParticipantsList
                 forPending={false}
                 participants={participants}
-                winnerId={tender.winner}
+                winnerId={"tes"}
                 isOwner={isOwner}
                 tenderId={id as string}
               />
@@ -159,14 +159,13 @@ export default function TenderDetailPage() {
             <h2 className="text-lg font-semibold mb-2">Pending Participants</h2>
             <ParticipantsList
               forPending={true}
-              participants={pendingParticipants}
-              winnerId={tender.winner}
+              participants={filteredPendingParticipants}
+              winnerId={"tes"}
               isOwner={isOwner}
               tenderId={id as string}
             />
           </div>
           </>
-
           )}
 
           {/* Documents Section - Changes based on registration status */}

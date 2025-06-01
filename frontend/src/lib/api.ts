@@ -1,5 +1,5 @@
 import axios from 'axios';
-
+import { createMyTenderQuery, createParticipantQuery, createPendingParticipantQuery, createTenderByIDQuery, createTenderQuery, createUserQuery } from './utils';
 const API_BASE_URL = `http://localhost:${import.meta.env.VITE_BACKEND_PORT}`;
 
 export interface Tender {
@@ -9,8 +9,6 @@ export interface Tender {
   description: string;
   startDate: string;
   endDate: string;
-  winner: string;
-  isActive: boolean;
 }
 
 export interface TenderResponse {
@@ -18,6 +16,16 @@ export interface TenderResponse {
   tender: Tender;
 }
 
+export interface ParticipantResponse {
+  participant: string;
+  name: string;
+  email: string;
+}
+
+export interface UserResponse {
+  name: string;
+  email: string;
+}
 export interface PaginatedResponse<T> {
   success: boolean;
   tenders: T[];
@@ -57,6 +65,44 @@ export interface CreateTenderResponse {
   tenderId: string;
 }
 
+
+
+export async function getTenders(search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_TENDER_API,
+    {
+      query: createTenderQuery(search, page, pageSize),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.tenderCreateds;
+}
+
+export async function getMyTenders(address: string, search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_TENDER_API,
+    {
+      query: createMyTenderQuery(address, search, page, pageSize),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.tenderCreateds;
+}
+
 export async function getAllTenders(page: number = 1, pageSize: number = 10): Promise<PaginatedResponse<Tender>> {
   const response = await axios.get(`${API_BASE_URL}/tender`, {
     params: {
@@ -90,9 +136,78 @@ export async function createTender(
   return response.data;
 }
 
-export async function getTenderById(id: string): Promise<TenderResponse> {
-  const response = await axios.get(`${API_BASE_URL}/tender/${id}`);
-  return response.data;
+  export async function getTenderById(id: string): Promise<Tender> {
+    // console.log("spam")
+    const response = await axios.post(
+      import.meta.env.VITE_THE_GRAPH_TENDER_API,
+      {
+        query: createTenderByIDQuery(id),
+        operationName: 'Subgraphs',
+        variables: {}
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+        }
+      }
+    )
+    return response.data.data.tenderCreateds[0];
+    
+  }
+
+export async function getPendingParticipants(id: string, page: number = 0): Promise<ParticipantResponse[]> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_TENDER_API,
+    {
+      query: createPendingParticipantQuery(id, page),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.pendingParticipantAddeds;
+}
+
+export async function getParticipants(id: string, page: number = 0): Promise<ParticipantResponse[]> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_TENDER_API,
+    {
+      query: createParticipantQuery(id, page),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.participantAddeds;
+}
+
+export async function getUser(address: string): Promise<UserResponse> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_PUBLIC_KEY_API,
+    {
+      query: createUserQuery(address),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.publicKeyStoreds[0];
 }
 
 export async function registerUser(name: string, email: string, address: string): Promise<RegisterResponse> {
@@ -122,6 +237,8 @@ export async function verifySignature(address: string, signature: string): Promi
 export async function addParticipant(
   tenderId: string,
   participant: string,
+  participantName: string,
+  participantEmail: string,
   deadline: number,
   v: number,
   r: string,
@@ -131,6 +248,8 @@ export async function addParticipant(
   const response = await axios.post<AddParticipantResponse>(`${API_BASE_URL}/tender/${tenderId}/participants`, {
     participant,
     deadline,
+    participantName,
+    participantEmail,
     v,
     r,
     s,

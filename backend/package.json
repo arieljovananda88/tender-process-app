@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "dependencies": {
     "@ethersproject/providers": "^5.7.2",
+    "@orbitdb/liftoff": "^1.1.0",
     "@types/uuid": "^10.0.0",
     "axios": "^1.7.9",
     "bcrypt": "^5.1.1",
@@ -26,7 +27,8 @@
     "dev": "nodemon --exec ts-node ./cmd/index.ts",
     "compile": "hardhat compile",
     "deploy:l2": "hardhat run scripts/deploy.ts --network optimism",
-    "cron": "tsc && node dist/src/cmd/cron/index.js"
+    "cron": "tsc && node dist/src/cmd/cron/index.js",
+    "deployContract": "npx hardhat run src/scripts/contracts/deploy.ts --network arbitrumSepolia"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.3",

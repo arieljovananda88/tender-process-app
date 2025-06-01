@@ -11,13 +11,20 @@ import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
 import { toast } from "react-toastify"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getUser } from "@/lib/api"
 
 type Document = {
   documentCid: string;
   documentName: string;
   documentType: string;
-  submissionDate: bigint;
+  submissionDate: string;
 };
+
+interface Participant {
+  address: string;
+  name: string;
+  email: string;
+}
 
 // Get file icon based on type or extension
 const getFileIcon = (fileType: string) => {
@@ -42,6 +49,7 @@ const getFileIcon = (fileType: string) => {
 export default function ParticipantSubmissionsPage() {
   const params = useParams()
   const { address } = useAccount()
+  const [participant, setParticipant] = useState<Participant | null>(null)
   const tenderId = params.id as string
   const participantAddress = params.address as string
   const { fetchParticipantDocuments } = useDocumentStore()
@@ -61,6 +69,12 @@ export default function ParticipantSubmissionsPage() {
         }
         console.log(tenderId, participantAddress)
         const pending = await isPendingParticipant(tenderId, participantAddress);
+        const participant = await getUser(participantAddress);
+        setParticipant({
+          address: participantAddress,
+          name: participant.name,
+          email: participant.email
+        });
         setIsPending(pending); 
       }
     };
@@ -78,7 +92,7 @@ export default function ParticipantSubmissionsPage() {
         toast.error("Please connect your wallet");
         return;
       }
-      await addParticipant(tenderId, participantAddress);
+      await addParticipant(tenderId, participantAddress, participant?.name || "", participant?.email || "");
       toast.success("Participant added successfully");
       setIsPending(false);
     } catch (error) {
@@ -157,7 +171,7 @@ export default function ParticipantSubmissionsPage() {
                   <div className="flex items-center text-sm">
                     <Building className="mr-2 h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Name:</span>
-                    <span className="ml-2">dummy name</span>
+                    <span className="ml-2">{participant?.name}</span>
                   </div>
                 </div>
               </div>
@@ -166,11 +180,7 @@ export default function ParticipantSubmissionsPage() {
                 <div className="space-y-2">
                   <div className="flex items-center text-sm">
                     <span className="text-muted-foreground w-16">Email:</span>
-                    <span>dummy email</span>
-                  </div>
-                  <div className="flex items-center text-sm">
-                    <span className="text-muted-foreground w-16">Phone:</span>
-                    <span>dummy phone</span>
+                    <span>{participant?.email}</span>
                   </div>
                 </div>
               </div>

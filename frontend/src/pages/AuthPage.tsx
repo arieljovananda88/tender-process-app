@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { checkIsRegistered, getNonce, verifySignature } from "@/lib/api";
+import { checkIsRegistered, getNonce, verifySignature, getUser } from "@/lib/api";
 
 const AuthPage: React.FC = () => {
   const { address, isConnected } = useAccount();
@@ -32,6 +32,9 @@ const AuthPage: React.FC = () => {
       setAuthStatus(res.success ? "Authenticated!" : "Authentication Failed");
 
       if (res.success) {
+        // add name and address of user to local storage
+        const user = await getUser(address);
+        localStorage.setItem("user", JSON.stringify({ address, name: user.name, email: user.email }));
         navigate("/dashboard");
       }
     } catch (err) {

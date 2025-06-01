@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { getTenderManagerContractInstance } from "../../../commons/contract-clients";
-import { ethers } from 'ethers';
 
 // Helper function to generate a shorter unique ID
 function generateTenderId(): string {
@@ -9,40 +8,15 @@ function generateTenderId(): string {
     return `${timestamp}-${random}`; // Format: timestamp-random
 }
 
-// Helper function to format tender response
-function formatTenderResponse(tender: any, tenderId: string) {
-    return {
-        tenderId: tenderId,
-        owner: tender.owner,
-        name: tender.name,
-        description: tender.description,
-        startDate: new Date(tender.startDate.toNumber() * 1000).toISOString(),
-        endDate: new Date(tender.endDate.toNumber() * 1000).toISOString(),
-        winner: tender.winner,
-        isActive: tender.isActive
-    };
-}
-
-/**
- * Create a new tender
- * 
- * Example curl command:
- * curl -X POST http://localhost:9090/tenders \
- *   -H "Content-Type: application/json" \
- *   -d '{
- *     "name": "Website Development Project",
- *     "description": "Development of company website with modern design",
- *     "startDate": "2024-03-20T00:00:00Z",
- *     "endDate": "2024-04-20T00:00:00Z",
- *     "owner": "0x3B79DcEAB0DD32F193623A5cF7b2f3F10da3A462"
- *   }'
- */
 export async function createTender(req: Request, res: Response) {
     const tenderManager = getTenderManagerContractInstance();
     try {
-        const { name, description, startDate, endDate, owner } = req.body;
+        const { name, description, startDate, endDate, deadline,
+            v,
+            r,
+            s, } = req.body;
         
-        if (!name || !description || !startDate || !endDate || !owner) {
+        if (!name || !description || !startDate || !endDate || !deadline || !v || !r || !s) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
@@ -59,7 +33,10 @@ export async function createTender(req: Request, res: Response) {
             description,
             startTimestamp,
             endTimestamp,
-            owner
+            v,
+            r,
+            s,
+            deadline
         );
 
         await tx.wait();
@@ -86,15 +63,19 @@ export async function addParticipant(req: Request, res: Response) {
         v,
         r,
         s,
-        signer } = req.body;
+        participantName,
+        participantEmail,
+         } = req.body;
 
-        if (!tenderId || !signer || !participant || !deadline || !v || !r || !s) {
+        if (!tenderId || !participant || !deadline || !v || !r || !s || !participantName || !participantEmail) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
         const tx = await tenderManager.addParticipant(
             tenderId,
             participant,
+            participantName,
+            participantEmail,
             v,
             r,
             s,
@@ -138,117 +119,3 @@ export async function selectWinner(req: Request, res: Response) {
         return res.status(500).json({ error: "Failed to select winner", details: error.message });
     }
 }
-
-export async function getTender(req: Request, res: Response) {
-    const tenderManager = getTenderManagerContractInstance();
-    try {
-        const { tenderId } = req.params;
-
-        if (!tenderId) {
-            return res.status(400).json({ error: "Missing tenderId" });
-        }
-
-        const tender = await tenderManager.getTender(tenderId);
-
-        return res.status(200).json({
-            success: true,
-            tender: formatTenderResponse(tender, tenderId)
-        });
-    } catch (error: any) {
-        console.error("Get tender error:", error);
-        return res.status(500).json({ error: "Failed to get tender", details: error.message });
-    }
-}
-
-export async function getTendersByOwner(req: Request, res: Response) {
-    const tenderManager = getTenderManagerContractInstance();
-    try {
-        const { owner } = req.params;
-        const page = parseInt(req.query.page as string) || 1;
-        const pageSize = parseInt(req.query.pageSize as string) || 10;
-
-        if (!owner) {
-            return res.status(400).json({ error: "Missing owner address" });
-        }
-
-        const [tenderIds, tenderDetails] = await tenderManager.getTendersByOwner(owner, page, pageSize);
-
-        const formattedTenders = tenderIds.map((tenderId: string, index: number) => {
-            return formatTenderResponse(tenderDetails[index], tenderId);
-        });
-
-        return res.status(200).json({
-            success: true,
-            tenders: formattedTenders,
-            pagination: {
-                page,
-                pageSize,
-                total: await tenderManager.ownerTenderIds(owner).then((ids: any) => ids.length)
-            }
-        });
-    } catch (error: any) {
-        console.error("Get tenders by owner error:", error);
-        return res.status(500).json({ error: "Failed to get tenders", details: error.message });
-    }
-}
-
-export async function getAllTenders(req: Request, res: Response) {
-    const tenderManager = getTenderManagerContractInstance();
-    try {
-        const page = parseInt(req.query.page as string) || 1;
-        const pageSize = parseInt(req.query.pageSize as string) || 10;
-
-        const [tenderIds, tenderDetails] = await tenderManager.getAllTenders(page, pageSize);
-
-        const formattedTenders = tenderIds.map((tenderId: string, index: number) => {
-            return formatTenderResponse(tenderDetails[index], tenderId);
-        });
-
-        return res.status(200).json({
-            success: true,
-            tenders: formattedTenders,
-            pagination: {
-                page,
-                pageSize,
-                total: formattedTenders.length
-            }
-        });
-    } catch (error: any) {
-        console.error("Get all tenders error:", error);
-        return res.status(500).json({ error: "Failed to get tenders", details: error.message });
-    }
-}
-
-export async function getParticipants(req: Request, res: Response) {
-    const tenderManager = getTenderManagerContractInstance();
-    try {
-        const { tenderId } = req.params;
-
-        if (!tenderId) {
-            return res.status(400).json({ error: "Missing tenderId" });
-        }
-
-        // First check if the tender exists
-        try {
-            const owner = await tenderManager.getOwner(tenderId);
-            if (owner === ethers.constants.AddressZero) {
-                return res.status(404).json({ error: "Tender not found" });
-            }
-        } catch (error) {
-            return res.status(404).json({ error: "Tender not found" });
-        }
-
-        const participants = await tenderManager.getPendingParticipants(tenderId);
-
-        return res.status(200).json({
-            success: true,
-            participants
-        });
-    } catch (error: any) {
-        console.error("Get participants error:", error);
-        if (error.message?.includes("Tender does not exist")) {
-            return res.status(404).json({ error: "Tender not found" });
-        }
-        return res.status(500).json({ error: "Failed to get participants", details: error.message });
-    }
-} 

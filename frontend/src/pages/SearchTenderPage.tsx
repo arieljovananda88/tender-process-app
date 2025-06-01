@@ -1,23 +1,21 @@
 import { useEffect, useState } from "react"
 import { SearchHeader } from "@/components/SearchHeader"
 import { TenderCard } from "@/components/TenderCard"
-import { getAllTenders, type Tender } from "@/lib/api"
+import { getTenders, type Tender } from "@/lib/api"
 
 
 export default function SearchTenders() {
   const [tenders, setTenders] = useState<Tender[]>([])
   const [loading, setLoading] = useState(true)
+  // const [search, setSearch] = useState("")
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchTenders = async () => {
       try {
-        const response = await getAllTenders()
-        console.log(response)
-        if (response.success) {
-          // Convert ISO date strings to Unix timestamps
-          const formattedTenders = response.tenders
-          setTenders(formattedTenders)
+        const tenders = await getTenders()
+        if (tenders) {
+          setTenders(tenders)
         } else {
           setError("Failed to fetch tenders")
         }
@@ -31,6 +29,7 @@ export default function SearchTenders() {
 
     fetchTenders()
   }, [])
+
 
   if (loading) {
     return (
@@ -69,7 +68,7 @@ export default function SearchTenders() {
               description={tender.description}
               startDate={tender.startDate}
               endDate={tender.endDate}
-              winner={tender.winner}
+              // winner={tender.winner}
             />
           ))}
         </div>

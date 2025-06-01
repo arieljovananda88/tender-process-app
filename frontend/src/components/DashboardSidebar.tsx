@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Building2, ChevronDown, ClipboardList, FileSearch, Home, Package, Search } from "lucide-react"
+import { Building2, ChevronDown, ClipboardList, FileSearch, Package, Search } from "lucide-react"
 
 import {
   Sidebar,
@@ -45,14 +45,14 @@ export function DashboardSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          <SidebarMenuItem>
+          {/* <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/")}>
               <Link to="/dashboard">
                 <Home className="size-4" />
                 <span>Dashboard</span>
               </Link>
             </SidebarMenuButton>
-          </SidebarMenuItem>
+          </SidebarMenuItem> */}
 
           <Collapsible open={tendersOpen} onOpenChange={setTendersOpen} className="group/collapsible">
             <SidebarMenuItem>

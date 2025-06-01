@@ -5,8 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 } 
 
-export const formatDate = (timestamp: string | bigint) => {
-  const date = typeof timestamp !== 'string' 
+export const formatDate = (timestamp: string, type: string = "int") => {
+  const date = type !== 'string' 
     ? new Date(Number(timestamp) * 1000)
     : new Date(timestamp);
     
@@ -23,7 +23,7 @@ export const shortenAddress = (address: string) => {
 
 
 export const calculateTimeRemaining = (endDate: string) => {
-  const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000)
+  const endTimestamp = Math.floor(new Date(Number(endDate) * 1000).getTime() / 1000)
   const now = Math.floor(Date.now() / 1000)
   const timeRemaining = endTimestamp - now
 
@@ -41,4 +41,108 @@ export const calculateTimeRemaining = (endDate: string) => {
   if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`)
 
   return parts.join(', ') + ' remaining'
+}
+
+export const createTenderQuery = (search: string = "", page: number = 0, pageSize: number = 10) => {
+  let condition = ""
+  if (search) {
+    condition = `where: {name: "${search}" }`
+  }
+  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+  return `
+    query Subgraphs {
+      tenderCreateds(${pagination}, ${condition}) {
+        id
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `
+}
+
+export const createMyTenderQuery = (address: string, search: string = "", page: number = 0, pageSize: number = 10) => {
+  let condition = ""
+  if (address) {
+    condition = `where: {owner: "${address}" }`
+  }
+  if (search) {
+    condition = `where: {owner: "${address}", name: "${search}" }`
+  }
+  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+  return `
+    query Subgraphs {
+      tenderCreateds(${pagination}, ${condition}) {
+        id
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `
+}
+
+export const createTenderByIDQuery = (id: string) => {
+  return `
+    query Subgraphs {
+      tenderCreateds(where: {tenderId: "${id}"}) {
+        id
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `
+}
+
+export const createPendingParticipantQuery = (id: string, page: number = 0) => {
+  const pageSize = 10
+  return `
+  query Subgraphs {
+    pendingParticipantAddeds(
+      where: { tenderId: "${id}" }
+      first: ${pageSize}
+      skip: ${page * pageSize}
+    ) {
+      participant
+      name
+    }
+  }
+`;
+}
+
+export const createParticipantQuery = (id: string, page: number = 0) => {
+  const pageSize = 10
+  return `
+  query Subgraphs {
+    participantAddeds(
+      where: { tenderId: "${id}" }
+      first: ${pageSize}
+      skip: ${page * pageSize}
+    ) {
+      participant
+      name
+    }
+  }
+`;
+}
+
+export const createUserQuery = (address: string) => {
+  return `
+    query Subgraphs {
+      publicKeyStoreds(where: {walletAddress: "${address}"}) {
+        email
+        name
+      }
+    }
+  `
 }

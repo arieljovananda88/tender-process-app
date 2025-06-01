@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 interface ITenderManager {
     function getOwner(string memory tenderId) external view returns (address);
-    function addPendingParticipant(string memory tenderId, address participant) external;
+    function addPendingParticipant(string memory tenderId, string memory name, string memory email, address participant) external;
     function isParticipant(string memory tenderId, address participant) external view returns (bool);
     function isPendingParticipant(string memory tenderId, address participant) external view returns (bool);
 }
@@ -26,41 +26,14 @@ contract DocumentStore {
         tenderManager = ITenderManager(tenderManagerAddress);
     }
 
-    function uploadDocument(
-        string memory tenderId,
-        address contestant,
-        string memory documentCid,
-        string memory documentName,
-        string memory documentType
-    ) public {
-        // If the documentType is "tender", check if the contestant is a participant
-        if (keccak256(bytes(documentType)) == keccak256(bytes("tender"))) {
-            require(
-                tenderManager.isParticipant(tenderId, contestant),
-                "Only participants can upload tender documents"
-            );
-        }
-
-        Document memory newDocument = Document({
-            documentCid: documentCid,
-            documentName: documentName,
-            documentType: documentType,
-            submissionDate: block.timestamp
-        });
-
-        tenderDocuments[tenderId][contestant].push(newDocument);
-        if(!tenderManager.isParticipant(tenderId, contestant) && !tenderManager.isPendingParticipant(tenderId, contestant)){
-            tenderManager.addPendingParticipant(tenderId, contestant);
-        }
-
-        emit DocumentUploaded(tenderId, contestant, documentCid, documentName, block.timestamp);
-    }
 
     function uploadDocumentWithSignature(
         string memory tenderId,
         string memory documentCid,
         string memory documentName,
         string memory documentType,
+        string memory participantName,
+        string memory participantEmail,
         uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) public {
@@ -93,7 +66,7 @@ contract DocumentStore {
         tenderDocuments[tenderId][signer].push(newDocument);
 
         if (!tenderManager.isParticipant(tenderId, signer) && !tenderManager.isPendingParticipant(tenderId, signer)) {
-            tenderManager.addPendingParticipant(tenderId, signer);
+            tenderManager.addPendingParticipant(tenderId, participantName, participantEmail, signer);
         }
 
         emit DocumentUploaded(tenderId, signer, documentCid, documentName, block.timestamp);

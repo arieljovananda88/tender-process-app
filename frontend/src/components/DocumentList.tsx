@@ -8,6 +8,12 @@ import { useAccount } from "wagmi"
 import { useParams } from "react-router-dom"
 import { toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
+import { decrypt } from "eciesjs"
+import { Buffer } from "buffer"
+
+// Polyfill Buffer for browser environment
+window.Buffer = Buffer;
+
 import {
   Dialog,
   DialogContent,
@@ -83,13 +89,37 @@ export function DocumentList({
 
   const handleDownload = async (doc: Document) => {
     try {
+      const privateKeyHex = "0x1234567890abcdef"; // fallback dummy
+
+      if (!privateKeyHex) {
+        toast.error("Private key not found. Please login again.");
+        return;
+      }
+
+      // 2. Fetch encrypted data from IPFS
       const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
-      window.open(ipfsUrl, '_blank');
+      const response = await fetch(ipfsUrl);
+      if (!response.ok) throw new Error("Failed to fetch file from IPFS");
+      
+      const encryptedArrayBuffer = await response.arrayBuffer();
+      const encryptedBuffer = Buffer.from(encryptedArrayBuffer)
+
+      // 3. Decrypt using eciesjs
+      const privateKeyBuffer = Buffer.from(privateKeyHex.replace(/^0x/, ""), "hex");
+      const decryptedBuffer = decrypt(privateKeyBuffer, encryptedBuffer);
+
+      // 4. Create a blob and open the file
+      const uint8Array = new Uint8Array(decryptedBuffer);
+      const blob = new Blob([uint8Array], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
     } catch (error) {
+      console.log(error)
       console.error("Download error:", error);
-      toast.error("Failed to open document.");
+      toast.error("Failed to decrypt and open document.");
     }
-  }
+  };
+
   
 
   const handleUpload = async () => {
@@ -129,7 +159,6 @@ export function DocumentList({
   
       const uploadResult = await uploadResponse.json()
       const documentCid = uploadResult.cid
-      // const documentCid = "dummy"
 
       // Generate signature
       const provider = new ethers.providers.Web3Provider(window.ethereum)
@@ -148,6 +177,9 @@ export function DocumentList({
       const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
       const splitSig = ethers.utils.splitSignature(signature)
 
+      // Get user info from localStorage
+      const userInfo = JSON.parse(localStorage.getItem('user') || '{}')
+
       // Send signature to backend
       const signaturePayload = {
         tenderId,
@@ -158,7 +190,9 @@ export function DocumentList({
         v: splitSig.v,
         r: splitSig.r,
         s: splitSig.s,
-        signer: address
+        signer: address,
+        participantName: userInfo.name || '',
+        participantEmail: userInfo.email || ''
       }
 
       const signatureResponse = await fetch("http://localhost:9090/upload-document/signature", {
@@ -217,7 +251,7 @@ export function DocumentList({
                       <div className="min-w-0 flex-1">
                         <h3 className={`font-medium text-${textSize} truncate`}>{doc.documentName}</h3>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Uploaded at {formatDate(doc.submissionDate)}
+                          Uploaded at {formatDate(doc.submissionDate.toString())}
                         </p>
                       </div>
                     </div>

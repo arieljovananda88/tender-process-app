@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import AuthPage from './pages/AuthPage';
-import DashboardPage from './pages/DashboardPage';
 import RegisterPage from './pages/RegisterPage';
 import { DashboardLayout } from './components/layouts/DashboardLayout';
 import SearchTenderPage from './pages/SearchTenderPage';
@@ -31,7 +30,7 @@ const App: React.FC = () => {
           <Route path="/register" element={<RegisterPage />} />
           
           <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
+            {/* <Route path="/dashboard" element={<DashboardPage />} /> */}
             <Route path="/tenders/search" element={<SearchTenderPage />} />
             <Route path="/tenders/registered" element={<div>Registered Tenders Page</div>} />
             <Route path="/my-tenders" element={<MyTenders />} />

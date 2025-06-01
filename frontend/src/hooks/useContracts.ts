@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import TenderManagerArtifact from '../../../backend/artifacts/contracts/TenderManager.sol/TenderManager.json';
 import DocumentStoreArtifact from '../../../backend/artifacts/contracts/DocumentStore.sol/DocumentStore.json';
-import { addParticipant as addParticipantApi } from '../lib/api';
+import { addParticipant as addParticipantApi, getParticipants, getPendingParticipants, ParticipantResponse } from '../lib/api';
 
 type Document = {
   documentCid: string;
@@ -14,7 +14,8 @@ type Document = {
 
 interface Participant {
     address: string
-    // name: string
+    name: string
+    email: string
   }
 
 export function useTenderManager() {
@@ -34,17 +35,19 @@ export function useTenderManager() {
 
       const resPending = await contract.isPendingParticipant(tenderId, address);
       const resRegistered = await contract.isParticipant(tenderId, address);
-      const participantAddresses = await contract.getParticipants(tenderId);
-      const pendingParticipants = await contract.getPendingParticipants(tenderId);
+      const participantAddresses = await getParticipants(tenderId);
+      const pendingParticipants = await getPendingParticipants(tenderId);
       
-      const formattedParticipants: Participant[] = participantAddresses.map((addr: string) => ({
-        address: addr,
-        name: "Unknown", 
+      const formattedParticipants: Participant[] = participantAddresses.map((participant: ParticipantResponse) => ({
+        address: participant.participant,
+        name: participant.name, 
+        email: participant.email
       }));
       
-      const formattedPendingParticipants: Participant[] = pendingParticipants.map((addr: string) => ({
-        address: addr,
-        name: "Unknown", 
+      const formattedPendingParticipants: Participant[] = pendingParticipants.map((participant: ParticipantResponse) => ({
+        address: participant.participant,
+        name: participant.name, 
+        email: participant.email
       }));
 
       setIsPending(resPending);
@@ -84,7 +87,7 @@ export function useTenderManager() {
     }
   };
 
-  const addParticipant = async (tenderId: string, participantAddress: string) => {
+  const addParticipant = async (tenderId: string, participantAddress: string, participantName: string, participantEmail: string) => {
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer = provider.getSigner();
@@ -103,6 +106,8 @@ export function useTenderManager() {
       const response = await addParticipantApi(
         tenderId,
         participantAddress,
+        participantName,
+        participantEmail,
         deadline,
         v,
         r,
@@ -134,7 +139,6 @@ export function useTenderManager() {
 }
 
 export function useDocumentStore() {
-  // const { address, isConnected } = useAccount();
   const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[] }>({
     registrationDocuments: [],
     tenderDocuments: []
@@ -142,11 +146,6 @@ export function useDocumentStore() {
 
 
   const fetchDocuments = async (tenderId: string) => {
-    // if (!address || !isConnected) {
-    //   alert("Please connect your wallet first.");
-    //   return;
-    // }
-
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer = provider.getSigner();

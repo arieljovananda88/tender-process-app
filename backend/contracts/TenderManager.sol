@@ -7,7 +7,6 @@ contract TenderManager {
         uint256 startDate;
         uint256 endDate;
         address winner;
-        string tenderCID;
     }
 
     mapping(string => Tender) public tenders;
@@ -19,15 +18,17 @@ contract TenderManager {
     mapping(string => address[]) public tenderParticipants;
     mapping(string => address[]) public pendingTenderParticipants;
 
-    event TenderCreated(string indexed tenderId, address owner, string tenderCID);
-    event ParticipantAdded(string indexed tenderId, address participant);
-    event WinnerSelected(string indexed tenderId, address winner);
+    event TenderCreated(string tenderId, address owner, string name, string description, uint256 startDate, uint256 endDate);
+    event ParticipantAdded(string tenderId, address participant, string name, string email, uint256 timestamp);
+    event PendingParticipantAdded(string tenderId, address participant, string name, string email, uint256 timestamp);
+    event WinnerSelected(string tenderId, address winner, string reason, uint256 timestamp);
 
     function createTender(
         string memory tenderId,
+        string memory name,
+        string memory description,
         uint256 startDate,
         uint256 endDate,
-        string memory tenderCID,
         uint8 v,
         bytes32 r,
         bytes32 s,
@@ -43,27 +44,31 @@ contract TenderManager {
             owner: ownerAddress,
             startDate: startDate,
             endDate: endDate,
-            winner: address(0),
-            tenderCID: tenderCID
+            winner: address(0)
         });
 
         allTenderIds.push(tenderId);
         ownerTenderIds[ownerAddress].push(tenderId);
 
-        emit TenderCreated(tenderId, ownerAddress, tenderCID);
+        emit TenderCreated(tenderId, ownerAddress, name, description, startDate, endDate);
     }
 
-    function addPendingParticipant(string memory tenderId, address participant) external {
+    function addPendingParticipant(string memory tenderId,  string memory name,
+        string memory email, address participant) external {
         require(tenders[tenderId].owner != address(0), "Tender does not exist");
         require(!pendingParticipants[tenderId][participant], "Already marked as pending");
 
         pendingParticipants[tenderId][participant] = true;
         pendingTenderParticipants[tenderId].push(participant);
+
+        emit PendingParticipantAdded(tenderId, participant, name, email, block.timestamp);
     }
 
     function addParticipant(
         string memory tenderId,
         address participant,
+        string memory name,
+        string memory email,
         uint8 v,
         bytes32 r,
         bytes32 s,
@@ -95,10 +100,10 @@ contract TenderManager {
             }
         }
 
-        emit ParticipantAdded(tenderId, participant);
+        emit ParticipantAdded(tenderId, participant, name, email, block.timestamp);
     }
 
-    function selectWinner(string memory tenderId, address winner) external {
+    function selectWinner(string memory tenderId, address winner, string memory reason) external {
         Tender storage tender = tenders[tenderId];
         require(msg.sender == tender.owner, "Only owner can select winner");
         require(block.timestamp > tender.endDate, "Tender not ended");
@@ -106,15 +111,7 @@ contract TenderManager {
         require(tender.winner == address(0), "Winner already selected");
 
         tender.winner = winner;
-        emit WinnerSelected(tenderId, winner);
-    }
-
-    function getParticipants(string memory tenderId) external view returns (address[] memory) {
-        return tenderParticipants[tenderId];
-    }
-
-    function getPendingParticipants(string memory tenderId) external view returns (address[] memory) {
-        return pendingTenderParticipants[tenderId];
+        emit WinnerSelected(tenderId, winner, reason, block.timestamp);
     }
 
     function isParticipant(string memory tenderId, address participant) external view returns (bool) {
@@ -125,65 +122,11 @@ contract TenderManager {
         return pendingParticipants[tenderId][participant];
     }
 
-    function getTendersByOwner(address owner, uint256 page, uint256 pageSize)
-        external
-        view
-        returns (string[] memory tenderIds, Tender[] memory tenderDetails)
-    {
-        require(page > 0, "Invalid page");
-
-        uint256 start = (page - 1) * pageSize;
-        uint256 end = start + pageSize;
-        string[] storage ownerTenders = ownerTenderIds[owner];
-        if (end > ownerTenders.length) end = ownerTenders.length;
-
-        uint256 resultSize = end - start;
-        tenderIds = new string[](resultSize);
-        tenderDetails = new Tender[](resultSize);
-
-        for (uint i = start; i < end; i++) {
-            string memory id = ownerTenders[i];
-            tenderIds[i - start] = id;
-            tenderDetails[i - start] = tenders[id];
-        }
-    }
-
-    function getAllTenders(uint256 page, uint256 pageSize)
-        external
-        view
-        returns (string[] memory tenderIds, Tender[] memory tenderDetails)
-    {
-        require(page > 0, "Invalid page");
-
-        uint256 start = (page - 1) * pageSize;
-        uint256 end = start + pageSize;
-        if (end > allTenderIds.length) end = allTenderIds.length;
-
-        uint256 resultSize = end - start;
-        tenderIds = new string[](resultSize);
-        tenderDetails = new Tender[](resultSize);
-
-        for (uint i = start; i < end; i++) {
-            string memory id = allTenderIds[i];
-            tenderIds[i - start] = id;
-            tenderDetails[i - start] = tenders[id];
-        }
-    }
-
-    function getTenderCID(string memory tenderId) external view returns (string memory) {
-        return tenders[tenderId].tenderCID;
-    }
-
-    function getOwner(string memory tenderId) external view returns (address) {
-        return tenders[tenderId].owner;
-    }
-
     function getWinner(string memory tenderId) external view returns (address) {
         return tenders[tenderId].winner;
     }
 
-    function isActive(string memory tenderId) external view returns (bool) {
-        Tender memory tender = tenders[tenderId];
-        return block.timestamp >= tender.startDate && block.timestamp <= tender.endDate;
+    function getOwner(string memory tenderId) external view returns (address) {
+        return tenders[tenderId].owner;
     }
 }

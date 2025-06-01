@@ -11,6 +11,16 @@
           "type": "string"
         },
         {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "email",
+          "type": "string"
+        },
+        {
           "internalType": "address",
           "name": "participant",
           "type": "address"
