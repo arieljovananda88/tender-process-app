@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import PublicKeyStorageArtifact from '../../artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json';
 import DocumentStoreArtifact from '../../artifacts/contracts/DocumentStore.sol/DocumentStore.json';
 import TenderManagerArtifact from '../../artifacts/contracts/TenderManager.sol/TenderManager.json';
+import KeyManagerArtifact from '../../artifacts/contracts/KeyManager.sol/KeyManager.json';
 
 export function getPublicKeyStoregeContractInstance() {
     const CONTRACT_ADDRESS = process.env.PUBLIC_KEY_STORAGE_CONTRACT_ADDRESS;
@@ -28,6 +29,16 @@ export function getPublicKeyStoregeContractInstance() {
 
     const signer = getSigner("arbitrum");
     return new ethers.Contract(CONTRACT_ADDRESS, TenderManagerArtifact.abi, signer);
+  
+  }
+
+  export function getKeyManagerContractInstance() {
+    const CONTRACT_ADDRESS = process.env.KEY_MANAGER_CONTRACT_ADDRESS;
+  
+    if (!CONTRACT_ADDRESS) throw new Error("KEY_MANAGER_CONTRACT_ADDRESS is missing");
+
+    const signer = getSigner("arbitrum");
+    return new ethers.Contract(CONTRACT_ADDRESS, KeyManagerArtifact.abi, signer);
   
   }
 

@@ -8,7 +8,7 @@ import { useAccount } from "wagmi"
 import { useParams } from "react-router-dom"
 import { toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { decrypt } from "eciesjs"
+import { AES, enc, lib, mode, pad } from "crypto-js";
 import { Buffer } from "buffer"
 
 // Polyfill Buffer for browser environment
@@ -89,37 +89,45 @@ export function DocumentList({
 
   const handleDownload = async (doc: Document) => {
     try {
-      const privateKeyHex = "0x1234567890abcdef"; // fallback dummy
-
-      if (!privateKeyHex) {
-        toast.error("Private key not found. Please login again.");
-        return;
-      }
-
-      // 2. Fetch encrypted data from IPFS
+      const symmetricKeyHex = "5e9277da37d9dbb4dac7c436e250ee75333b61969b66027085f8c2f699da7fc5";
+      const ivHex = "8d1e651b73db4411c9160f1dca632411";
+  
+      // 1. Fetch encrypted file from IPFS
       const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
       const response = await fetch(ipfsUrl);
       if (!response.ok) throw new Error("Failed to fetch file from IPFS");
-      
+  
       const encryptedArrayBuffer = await response.arrayBuffer();
-      const encryptedBuffer = Buffer.from(encryptedArrayBuffer)
-
-      // 3. Decrypt using eciesjs
-      const privateKeyBuffer = Buffer.from(privateKeyHex.replace(/^0x/, ""), "hex");
-      const decryptedBuffer = decrypt(privateKeyBuffer, encryptedBuffer);
-
-      // 4. Create a blob and open the file
-      const uint8Array = new Uint8Array(decryptedBuffer);
-      const blob = new Blob([uint8Array], { type: 'application/pdf' });
+      const encryptedWordArray = enc.Hex.parse(Buffer.from(encryptedArrayBuffer).toString("hex"));
+  
+      // 2. Prepare key and IV
+      const key = enc.Hex.parse(symmetricKeyHex);
+      const iv = enc.Hex.parse(ivHex);
+  
+      const cipherParams = lib.CipherParams.create({
+        ciphertext: encryptedWordArray
+      });
+  
+      // 4. Decrypt
+      const decrypted = AES.decrypt(cipherParams, key, {
+        iv: iv,
+        mode: mode.CBC,
+        padding: pad.Pkcs7
+      });
+  
+      // 5. Convert decrypted WordArray to binary
+      const decryptedHex = decrypted.toString(enc.Hex);
+      const decryptedBytes = Buffer.from(decryptedHex, "hex");
+  
+      // 6. Download blob (assuming PDF)
+      const blob = new Blob([decryptedBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      window.open(url, "_blank");
     } catch (error) {
-      console.log(error)
       console.error("Download error:", error);
       toast.error("Failed to decrypt and open document.");
     }
   };
-
   
 
   const handleUpload = async () => {
@@ -141,13 +149,38 @@ export function DocumentList({
     setIsUploading(true)
     const formData = new FormData()
     formData.append("document", selectedFile)
-    formData.append("file_name", fileName)
-    formData.append("address", address)
-    formData.append("tender_id", tenderId)
-    formData.append("type", typeOfFile)
+    formData.append("documentName", fileName)
+    formData.append("documentType", typeOfFile)
+    formData.append("tenderId", tenderId)
+    formData.append("participantName", JSON.parse(localStorage.getItem('user') || '{}').name || '')
+    formData.append("participantEmail", JSON.parse(localStorage.getItem('user') || '{}').email || '')
   
     try {
-      // First upload the file to get the CID
+      // Generate signature
+      const provider = new ethers.providers.Web3Provider(window.ethereum)
+      const signer = provider.getSigner()
+      const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+
+      // Create message hash for deadline
+      const messageHash = ethers.utils.keccak256(
+        ethers.utils.solidityPack(
+          ["string", "string", "uint256"],
+          [tenderId, fileName, deadline]
+        )
+      )
+
+      // Sign the hash
+      const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
+      const splitSig = ethers.utils.splitSignature(signature)
+
+      // Add signature to formData
+      formData.append("deadline", deadline.toString())
+      formData.append("v", splitSig.v.toString())
+      formData.append("r", splitSig.r)
+      formData.append("s", splitSig.s)
+      formData.append("signer", address)
+
+      // Upload document with signature
       const uploadResponse = await fetch("http://localhost:9090/upload-document", {
         method: "POST",
         body: formData,
@@ -158,54 +191,8 @@ export function DocumentList({
       }
   
       const uploadResult = await uploadResponse.json()
-      const documentCid = uploadResult.cid
 
-      // Generate signature
-      const provider = new ethers.providers.Web3Provider(window.ethereum)
-      const signer = provider.getSigner()
-      const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
-
-      // Create message hash exactly as the contract does
-      const messageHash = ethers.utils.keccak256(
-        ethers.utils.solidityPack(
-          ["string", "string", "string", "string", "uint256"],
-          [tenderId, documentCid, fileName, typeOfFile, deadline]
-        )
-      )
-
-      // Sign the hash
-      const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
-      const splitSig = ethers.utils.splitSignature(signature)
-
-      // Get user info from localStorage
-      const userInfo = JSON.parse(localStorage.getItem('user') || '{}')
-
-      // Send signature to backend
-      const signaturePayload = {
-        tenderId,
-        documentCid,
-        documentName: fileName,
-        documentType: typeOfFile,
-        deadline,
-        v: splitSig.v,
-        r: splitSig.r,
-        s: splitSig.s,
-        signer: address,
-        participantName: userInfo.name || '',
-        participantEmail: userInfo.email || ''
-      }
-
-      const signatureResponse = await fetch("http://localhost:9090/upload-document/signature", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(signaturePayload),
-      })
-
-      if (!signatureResponse.ok) {
-        throw new Error(`Signature upload failed with status ${signatureResponse.status}`)
-      }
+      console.log(uploadResult)
 
       // Reset UI
       setSelectedFile(null)
