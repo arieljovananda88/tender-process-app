@@ -3,21 +3,9 @@ import { ethers } from "ethers";
 import { encrypt } from "eciesjs";
 import crypto from "crypto";
 import { initIPFSClient, handleFileUpload } from "./commons";
-import { getDocumentStoreContractInstance, getKeyManagerContractInstance, getTenderManagerContractInstance } from "../../../commons/contract-clients";
+import { getDocumentStoreContractInstance, getKeyManagerContractInstance, getPublicKeyStoregeContractInstance, getTenderManagerContractInstance } from "../../../commons/contract-clients";
+import jwkToPem from 'jwk-to-pem';
 
-// const dummyPrivateKey = "";
-// const wallet = new ethers.Wallet(dummyPrivateKey);
-// const dummyPublicKey = Buffer.from(wallet.publicKey.slice(2), 'hex');
-
-function encryptSymmetric(buffer: Buffer): { content: Buffer, symmetricKey: string } {
-  const symmetricKey = crypto.randomBytes(32);
-  const iv = crypto.randomBytes(12); // 12 bytes for GCM
-  const cipher = crypto.createCipheriv("aes-256-gcm", symmetricKey, iv);
-  const encrypted = Buffer.concat([cipher.update(buffer), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-
-  return { content: Buffer.concat([iv, authTag, encrypted]), symmetricKey: symmetricKey.toString('hex') };
-}
 
 function generateSymmetricKey() {
     return crypto.randomBytes(32); // 256 bits for AES-256
@@ -83,6 +71,7 @@ async function uploadDocument(req: any, res: any) {
 
       // Upload document with signature to smart contract
       const documentStore = getDocumentStoreContractInstance();
+      const publicKeyStorageContract = getPublicKeyStoregeContractInstance()
       const uploadDocumentTx = await documentStore.uploadDocumentWithSignature(
         tenderId,
         cid,
@@ -101,8 +90,25 @@ async function uploadDocument(req: any, res: any) {
       const tenderManager = getTenderManagerContractInstance();
       const owner = await tenderManager.getOwner(tenderId);
 
+      const ownerPublicKeyInContract = await publicKeyStorageContract.getPublicKey(owner);
+
+      const pem = jwkToPem(JSON.parse(ownerPublicKeyInContract));
+
+      const symmetricKeyBuffer = Buffer.from(symmetricKey, "utf8");
+
+      const ownerEncryptedSymmetricBuffer = crypto.publicEncrypt(
+        {
+          key: pem,
+          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+          oaepHash: 'sha256'
+        },
+        symmetricKeyBuffer
+      );
+
+      const ownerEncryptedSymmetricKey = ownerEncryptedSymmetricBuffer.toString('base64');
+
       const keyManager = getKeyManagerContractInstance();
-      const emitKeyOwnerTx = await keyManager.emitKey(owner, symmetricKey, iv, cid, v, r, s, deadline); //TODO encrypt symmetricKey with public key of owner
+      const emitKeyOwnerTx = await keyManager.emitKey(owner, ownerEncryptedSymmetricKey, iv, cid, v, r, s, deadline); //TODO encrypt symmetricKey with public key of owner
       await emitKeyOwnerTx.wait();
 
       const emitKeySignerTx = await keyManager.emitKey(signer, symmetricKey, iv, cid, v, r, s, deadline); //TODO encrypt symmetricKey with public key of signer

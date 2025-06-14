@@ -35,7 +35,7 @@ const AuthPage: React.FC = () => {
         // add name and address of user to local storage
         const user = await getUser(address);
         localStorage.setItem("user", JSON.stringify({ address, name: user.name, email: user.email }));
-        navigate("/dashboard");
+        navigate("/tenders/search");
       }
     } catch (err) {
       console.error("Signing failed", err);

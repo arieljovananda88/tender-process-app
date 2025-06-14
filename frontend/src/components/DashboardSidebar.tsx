@@ -45,14 +45,6 @@ export function DashboardSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {/* <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/")}>
-              <Link to="/dashboard">
-                <Home className="size-4" />
-                <span>Dashboard</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem> */}
 
           <Collapsible open={tendersOpen} onOpenChange={setTendersOpen} className="group/collapsible">
             <SidebarMenuItem>

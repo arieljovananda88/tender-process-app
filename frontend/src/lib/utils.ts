@@ -43,106 +43,210 @@ export const calculateTimeRemaining = (endDate: string) => {
   return parts.join(', ') + ' remaining'
 }
 
-export const createTenderQuery = (search: string = "", page: number = 0, pageSize: number = 10) => {
-  let condition = ""
-  if (search) {
-    condition = `where: {name: "${search}" }`
+const DEFAULT_IV = new Uint8Array(12); // 12-byte zero IV
+const DEFAULT_SALT = new Uint8Array(16);
+
+export async function importPrivateKeyFromJWK(jwk: any) {
+  return await window.crypto.subtle.importKey(
+    "jwk",         // key format
+    jwk,           // the JWK object
+    {
+      name: "RSA-OAEP",
+      hash: "SHA-256",
+    },
+    true,          // extractable
+    ["decrypt"]    // key usage
+  );
+}
+
+
+
+export async function encryptPrivateKeyWithPassphrase(privateKeyString: string, passphrase: string) {
+  // 1. Derive a key from the passphrase
+  const encoder = new TextEncoder(); // AES-GCM needs 12-byte IV
+
+  const passphraseKey = await window.crypto.subtle.importKey(
+    "raw",
+    encoder.encode(passphrase),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  const aesKey = await window.crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: DEFAULT_SALT,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    passphraseKey,
+    {
+      name: "AES-GCM",
+      length: 256,
+    },
+    true,
+    ["encrypt", "decrypt"]
+  );
+
+  
+
+  // 2. Encrypt the stringified private key
+  const encrypted = await window.crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv: DEFAULT_IV,
+    },
+    aesKey,
+    encoder.encode(privateKeyString)
+  );
+
+  return {
+    encryptedData: new Uint8Array(encrypted),
+  };
+}
+
+export async function tryDecryptAndParseJSON(encryptedData: Uint8Array, passphrase: string) {
+  try {
+    const decrypted = await decryptPrivateKeyWithPassphrase(encryptedData, passphrase);
+    
+    // Try parsing JSON
+    const parsed = JSON.parse(decrypted);
+
+    // Optionally, check if it's a valid JWK structure
+    if (!parsed.kty || !parsed.n || !parsed.e) {
+      throw new Error("Decrypted content is not a valid JWK key");
+    }
+
+    return { success: true, parsed };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
-  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
-  return `
-    query Subgraphs {
-      tenderCreateds(${pagination}, ${condition}) {
-        id
-        tenderId
-        owner
-        name
-        description
-        startDate
-        endDate
+}
+
+
+export async function decryptPrivateKeyWithPassphrase(encryptedData: Uint8Array, passphrase: string) {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  // 1. Re-import the passphrase and derive the AES key
+  const passphraseKey = await window.crypto.subtle.importKey(
+    "raw",
+    encoder.encode(passphrase),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  const aesKey = await window.crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: DEFAULT_SALT,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    passphraseKey,
+    {
+      name: "AES-GCM",
+      length: 256,
+    },
+    false,
+    ["decrypt"]
+  );
+
+  // 2. Decrypt the data
+  const decryptedBuffer = await window.crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: DEFAULT_IV,
+    },
+    aesKey,
+    new Uint8Array(encryptedData)
+  );
+
+  return decoder.decode(decryptedBuffer); // returns stringified private key (e.g., JSON)
+}
+
+export function base64ToUint8Array(base64: string) {
+  const binaryString = atob(base64); // decode base64 to binary string
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+
+
+export async function generateKeyPair() {
+  const keyPair = await window.crypto.subtle.generateKey(
+    {
+      name: "RSA-OAEP",
+      modulusLength: 2048, // can be 1024, 2048, or 4096
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true, // whether the key is extractable (i.e., can be exported)
+    ["encrypt", "decrypt"] // usages
+  );
+
+  return keyPair;
+}
+
+export async function decryptData(privateKey: CryptoKey, encryptedData: any) {
+  const decrypted = await window.crypto.subtle.decrypt(
+    {
+      name: "RSA-OAEP",
+    },
+    privateKey,
+    encryptedData
+  );
+
+  return new TextDecoder().decode(decrypted);
+}
+
+export const openDB = async () => {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open('TenderApp', 1);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains('encryptedKeys')) {
+        db.createObjectStore('encryptedKeys', { keyPath: 'address' });
       }
-    }
-  `
-}
+    };
+  });
+};
 
-export const createMyTenderQuery = (address: string, search: string = "", page: number = 0, pageSize: number = 10) => {
-  let condition = ""
-  if (address) {
-    condition = `where: {owner: "${address}" }`
-  }
-  if (search) {
-    condition = `where: {owner: "${address}", name: "${search}" }`
-  }
-  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
-  return `
-    query Subgraphs {
-      tenderCreateds(${pagination}, ${condition}) {
-        id
-        tenderId
-        owner
-        name
-        description
-        startDate
-        endDate
+export async function getKeyFromDB(address: string): Promise<string> {
+  const db = await openDB();
+  const transaction = db.transaction('encryptedKeys', 'readonly');
+  const store = transaction.objectStore('encryptedKeys');
+
+  return new Promise<string>((resolve, reject) => {
+    const request = store.get(address);
+
+    request.onsuccess = () => {
+      const result = request.result;
+      if (result) {
+        resolve(result.encryptedKey);
+      } else {
+        resolve(""); // Address not found
       }
-    }
-  `
+    };
+
+    request.onerror = () => {
+      reject(request.error);
+    };
+  });
 }
 
-export const createTenderByIDQuery = (id: string) => {
-  return `
-    query Subgraphs {
-      tenderCreateds(where: {tenderId: "${id}"}) {
-        id
-        tenderId
-        owner
-        name
-        description
-        startDate
-        endDate
-      }
-    }
-  `
-}
-
-export const createPendingParticipantQuery = (id: string, page: number = 0) => {
-  const pageSize = 10
-  return `
-  query Subgraphs {
-    pendingParticipantAddeds(
-      where: { tenderId: "${id}" }
-      first: ${pageSize}
-      skip: ${page * pageSize}
-    ) {
-      participant
-      name
-    }
-  }
-`;
-}
-
-export const createParticipantQuery = (id: string, page: number = 0) => {
-  const pageSize = 10
-  return `
-  query Subgraphs {
-    participantAddeds(
-      where: { tenderId: "${id}" }
-      first: ${pageSize}
-      skip: ${page * pageSize}
-    ) {
-      participant
-      name
-    }
-  }
-`;
-}
-
-export const createUserQuery = (address: string) => {
-  return `
-    query Subgraphs {
-      publicKeyStoreds(where: {walletAddress: "${address}"}) {
-        email
-        name
-      }
-    }
-  `
+export function stringToArrayBuffer(str: string): ArrayBuffer {
+  return new TextEncoder().encode(str).buffer;
 }

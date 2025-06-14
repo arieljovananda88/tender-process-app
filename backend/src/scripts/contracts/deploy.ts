@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-    const contractBeingDeployed = "KeyManager"
+    const contractBeingDeployed = "PublicKeyStorage"
     const Contract = await ethers.getContractFactory(contractBeingDeployed)
 
     console.log(`Deploying ${contractBeingDeployed} smart contract...`);

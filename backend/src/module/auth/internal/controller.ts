@@ -13,8 +13,8 @@ async function register(req: Request, res: Response) {
   const publicKeyStorageContract = getPublicKeyStoregeContractInstance()
 
   try {
-      const { email, address, name } = req.body;
-      if (!email || !address || !name) {
+      const { email, address, name, publicKey } = req.body;
+      if (!email || !address || !name || !publicKey) {
           return res.status(400).json({ error: "Missing email, address or name" });
       }
 
@@ -23,24 +23,11 @@ async function register(req: Request, res: Response) {
           return res.status(400).json({ error: "Public key has already been registered" });
       }
 
-
-      // Generate key pair
-      const { publicKey, privateKey } = generateKeyPairSync('ec', {
-          namedCurve: 'secp256k1',
-          publicKeyEncoding: { type: 'spki', format: 'der' },
-          privateKeyEncoding: { type: 'pkcs8', format: 'der' },
-      });
-
-      const publicKeyHex = Buffer.from(publicKey).toString('hex');
-      const privateKeyHex = Buffer.from(privateKey).toString('hex');
-
-      await publicKeyStorageContract.storeUserInfo(address, email, name, publicKeyHex);
+      await publicKeyStorageContract.storeUserInfo(address, email, name, publicKey);
 
       return res.status(200).json({
           success: true,
           message: "Registration successful",
-          publicKey: publicKeyHex,
-          privateKey: privateKeyHex
       });
   } catch (error: any) {
       console.error("registration error:", error);

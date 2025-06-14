@@ -23,6 +23,54 @@ interface TenderFormData {
   endDate: string;
 }
 
+// async function example() {
+//   // 1. Generate key pair
+//   const keyPair = await generateKeyPair();
+
+//   console.log(keyPair.privateKey)
+
+//   const jwk = await window.crypto.subtle.exportKey("jwk", keyPair.privateKey);
+//   const privateKeyString = JSON.stringify(jwk);
+
+//   const passphrase = "my-secret-password";
+
+//   const encryptedResult = await encryptPrivateKeyWithPassphrase(privateKeyString, passphrase);
+
+//   const encKey = btoa(String.fromCharCode(...encryptedResult.encryptedData));
+
+//   const encKeyUint8Array = base64ToUint8Array(encKey);
+
+//   const decryptedResult = await tryDecryptAndParseJSON(encKeyUint8Array, "my-secret-password");
+
+//   if (!decryptedResult.success) {
+//     toast.error("Failed to decrypt private key");
+//     return;
+//   }
+
+//   const privateKey = await importPrivateKeyFromJWK(decryptedResult.parsed);
+//   // 2. Encrypt some data with the public key
+//   const data = new TextEncoder().encode("Hello world");
+
+//   const encryptedData = await window.crypto.subtle.encrypt(
+//     {
+//       name: "RSA-OAEP",
+//     },
+//     keyPair.publicKey,
+//     data
+//   );
+
+//   // 3. Decrypt data with the private key
+//   const decryptedText = await decryptData(privateKey, encryptedData);
+
+//   console.log("Decrypted text:", decryptedText);
+// }
+
+//   request.onerror = () => {
+//     console.error("Failed to fetch encrypted key:", request.error);
+//   };
+// }
+
+
 export default function MyTenders() {
   const { address } = useAccount();
   const [tenders, setTenders] = useState<Tender[]>([])
@@ -45,6 +93,11 @@ export default function MyTenders() {
       [name]: value
     }));
   };
+
+  // useEffect(() => {
+  //   example()
+  //   example2(address as string)
+  // }, [])
 
   const handleCreateTender = async () => {
     try {

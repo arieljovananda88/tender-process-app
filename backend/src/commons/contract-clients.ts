@@ -9,7 +9,7 @@ export function getPublicKeyStoregeContractInstance() {
   
     if (!CONTRACT_ADDRESS) throw new Error("PUBLIC_KEY_STORAGE_CONTRACT_ADDRESS is missing");
 
-    const signer = getSigner();
+    const signer = getSigner("arbitrum");
     return new ethers.Contract(CONTRACT_ADDRESS, PublicKeyStorageArtifact.abi, signer);
   }
 

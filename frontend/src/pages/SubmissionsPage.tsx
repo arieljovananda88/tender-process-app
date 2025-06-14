@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, User, Building, FileText, File, FileImage, FileSpreadsheet } from "lucide-react"
 import { Link } from "react-router-dom"
-import { formatDate } from "@/lib/utils"
+import { base64ToUint8Array, decryptData, formatDate, getKeyFromDB, importPrivateKeyFromJWK, tryDecryptAndParseJSON } from "@/lib/utils"
 import { useDocumentStore, useTenderManager } from "@/hooks/useContracts"
 import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
 import { toast } from "react-toastify"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getUser } from "@/lib/api"
+import { getKey, getUser } from "@/lib/api"
+import { AES, enc, lib, mode, pad } from "crypto-js";
 
 type Document = {
   documentCid: string;
@@ -81,9 +82,54 @@ export default function ParticipantSubmissionsPage() {
     loadData();
   }, []);
 
-  const handleDownload = (doc: Document) => {
-    const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
-    window.open(ipfsUrl, '_blank');
+
+  const handleDownload = async (doc: Document) => {
+    try {
+      const {encryptedKey, iv} = await getKey(address as string, doc.documentCid)
+      const encryptedSymmetricKey = encryptedKey
+      console.log(encryptedKey, iv)
+  
+      // 1. Fetch encrypted file from IPFS
+      const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
+      const response = await fetch(ipfsUrl);
+      if (!response.ok) throw new Error("Failed to fetch file from IPFS");
+
+      const encryptedKeyFromDB = await getKeyFromDB(address as string)
+
+      const encKeyUint8Array = base64ToUint8Array(encryptedKeyFromDB as string);
+
+      const decryptedResult = await tryDecryptAndParseJSON(encKeyUint8Array, "buls2012");
+
+      const privateKey = await importPrivateKeyFromJWK(decryptedResult.parsed);
+      
+      const symmetricKey = await decryptData(privateKey, base64ToUint8Array(encryptedSymmetricKey));
+  
+      const encryptedArrayBuffer = await response.arrayBuffer();
+      const encryptedWordArray = enc.Hex.parse(Buffer.from(encryptedArrayBuffer).toString("hex"));
+  
+      const key = enc.Hex.parse(symmetricKey);
+      const ivBuf = enc.Hex.parse(iv);
+  
+      const cipherParams = lib.CipherParams.create({
+        ciphertext: encryptedWordArray
+      });
+  
+      const decrypted = AES.decrypt(cipherParams, key, {
+        iv: ivBuf,
+        mode: mode.CBC,
+        padding: pad.Pkcs7
+      });
+  
+      const decryptedHex = decrypted.toString(enc.Hex);
+      const decryptedBytes = Buffer.from(decryptedHex, "hex");
+  
+      const blob = new Blob([decryptedBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (error) {
+      console.error("Download error:", error);
+      toast.error("Failed to decrypt and open document.");
+    }
   };
 
   const handleAddParticipant = async () => {

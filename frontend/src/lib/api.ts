@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { createMyTenderQuery, createParticipantQuery, createPendingParticipantQuery, createTenderByIDQuery, createTenderQuery, createUserQuery } from './utils';
 const API_BASE_URL = `http://localhost:${import.meta.env.VITE_BACKEND_PORT}`;
 
 export interface Tender {
@@ -65,6 +64,11 @@ export interface CreateTenderResponse {
   tenderId: string;
 }
 
+export interface KeyResponse {
+  encryptedKey: string;
+  iv: string;
+}
+
 
 
 export async function getTenders(search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
@@ -111,6 +115,24 @@ export async function getAllTenders(page: number = 1, pageSize: number = 10): Pr
     }
   });
   return response.data;
+}
+
+export async function getKey(address: string, cid: string): Promise<KeyResponse> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_KEY_MANAGER_API,
+    {
+      query: createKeyQuery(address, cid),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.emitKeys[0];
 }
 
 export async function createTender( 
@@ -210,11 +232,12 @@ export async function getUser(address: string): Promise<UserResponse> {
   return response.data.data.publicKeyStoreds[0];
 }
 
-export async function registerUser(name: string, email: string, address: string): Promise<RegisterResponse> {
+export async function registerUser(name: string, email: string, address: string, publicKey: string): Promise<RegisterResponse> {
   const response = await axios.post<RegisterResponse>(`${API_BASE_URL}/auth/register`, {
     name,
     email,
     address,
+    publicKey,
   });
   return response.data;
 }
@@ -256,4 +279,118 @@ export async function addParticipant(
     signer
   });
   return response.data;
+}
+
+const createTenderQuery = (search: string = "", page: number = 0, pageSize: number = 10) => {
+  let condition = ""
+  if (search) {
+    condition = `where: {name: "${search}" }`
+  }
+  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+  return `
+    query Subgraphs {
+      tenderCreateds(${pagination}, ${condition}) {
+        id
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `
+}
+
+const createMyTenderQuery = (address: string, search: string = "", page: number = 0, pageSize: number = 10) => {
+  let condition = ""
+  if (address) {
+    condition = `where: {owner: "${address}" }`
+  }
+  if (search) {
+    condition = `where: {owner: "${address}", name: "${search}" }`
+  }
+  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+  return `
+    query Subgraphs {
+      tenderCreateds(${pagination}, ${condition}) {
+        id
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `
+}
+
+const createTenderByIDQuery = (id: string) => {
+  return `
+    query Subgraphs {
+      tenderCreateds(where: {tenderId: "${id}"}) {
+        id
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `
+}
+const createPendingParticipantQuery = (id: string, page: number = 0) => {
+  const pageSize = 10
+  return `
+  query Subgraphs {
+    pendingParticipantAddeds(
+      where: { tenderId: "${id}" }
+      first: ${pageSize}
+      skip: ${page * pageSize}
+    ) {
+      participant
+      name
+    }
+  }
+`;
+}
+
+const createParticipantQuery = (id: string, page: number = 0) => {
+  const pageSize = 10
+  return `
+  query Subgraphs {
+    participantAddeds(
+      where: { tenderId: "${id}" }
+      first: ${pageSize}
+      skip: ${page * pageSize}
+    ) {
+      participant
+      name
+    }
+  }
+`;
+}
+
+const createUserQuery = (address: string) => {
+  return `
+    query Subgraphs {
+      publicKeyStoreds(where: {walletAddress: "${address}"}) {
+        email
+        name
+      }
+    }
+  `
+}
+
+const createKeyQuery = (address: string, cid: string) => {
+  return `
+    query Subgraphs {
+      emitKeys(where: {receiver: "${address}", cid: "${cid}"}) {
+        encryptedKey
+        iv
+      }
+    }
+  `
 }
