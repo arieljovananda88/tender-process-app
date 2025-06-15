@@ -33,7 +33,6 @@ contract KeyManager {
         emit EmitKey(receiver, senderAddress, encryptedKey, iv, cid);
     }
 
-    // Function to get the encrypted key for a specific CID and receiver
     function getEncryptedKey(string memory cid, address receiver) external view returns (string memory) {
         return encryptedKeys[cid][receiver];
     }

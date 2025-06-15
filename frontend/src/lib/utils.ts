@@ -1,9 +1,20 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { AES, enc, lib, mode, pad } from "crypto-js";
+import { getKey } from "./api";
+import { toast } from "react-toastify";
+
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 } 
+
+type Document = {
+  documentCid: string;
+  documentName: string;
+  documentType: string;
+  submissionDate: string;
+};
 
 export const formatDate = (timestamp: string, type: string = "int") => {
   const date = type !== 'string' 
@@ -249,4 +260,76 @@ export async function getKeyFromDB(address: string): Promise<string> {
 
 export function stringToArrayBuffer(str: string): ArrayBuffer {
   return new TextEncoder().encode(str).buffer;
+}
+
+export async function downloadEncryptedFile(address: string, doc: Document, passphrase: string) {
+  try {
+    const {encryptedKey, iv} = await getKey(address as string, doc.documentCid)
+    const encryptedSymmetricKey = encryptedKey
+
+    const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
+    const response = await fetch(ipfsUrl);
+    if (!response.ok) throw new Error("Failed to fetch file from IPFS");
+
+    const encryptedKeyFromDB = await getKeyFromDB(address as string)
+
+    const encKeyUint8Array = base64ToUint8Array(encryptedKeyFromDB as string);
+
+    const decryptedResult = await tryDecryptAndParseJSON(encKeyUint8Array, passphrase);
+
+    const privateKey = await importPrivateKeyFromJWK(decryptedResult.parsed);
+    
+    const symmetricKey = await decryptData(privateKey, base64ToUint8Array(encryptedSymmetricKey));
+
+    const encryptedArrayBuffer = await response.arrayBuffer();
+    const encryptedWordArray = enc.Hex.parse(Buffer.from(encryptedArrayBuffer).toString("hex"));
+
+    const key = enc.Hex.parse(symmetricKey);
+    const ivBuf = enc.Hex.parse(iv);
+
+    const cipherParams = lib.CipherParams.create({
+      ciphertext: encryptedWordArray
+    });
+
+    const decrypted = AES.decrypt(cipherParams, key, {
+      iv: ivBuf,
+      mode: mode.CBC,
+      padding: pad.Pkcs7
+    });
+
+    const decryptedHex = decrypted.toString(enc.Hex);
+    const decryptedBytes = Buffer.from(decryptedHex, "hex");
+
+    const blob = new Blob([decryptedBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  } catch (error) {
+    console.error("Download error:", error);
+    toast.error("Failed to decrypt and open document.");
+  }
+}
+
+export async function downloadFile(doc: Document) {
+  try {
+    const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
+    const response = await fetch(ipfsUrl);
+    if (!response.ok) throw new Error("Failed to fetch file from IPFS");
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = doc.documentName; // Use the original filename
+    document.body.appendChild(link);
+    link.click();
+    
+    // Cleanup
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Download error:", error);
+    toast.error("Failed to download document.");
+  }
 }

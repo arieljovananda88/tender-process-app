@@ -137,6 +137,44 @@ async function uploadDocument(req: any, res: any) {
   });
 }
 
+async function uploadFile(req: any, res: any) {
+  handleFileUpload(req, res, async function(err: any) {
+    const { file } = req;
+
+    if (err || !file) {
+      return res.status(400).json({ error: err ? 'File upload failed' : 'No file provided' });
+    }
+
+    try {
+      const { create } = await import("ipfs-http-client");
+      const ipfs = initIPFSClient(create);
+      
+      const fileContent = fs.readFileSync(file.path);
+      
+      const result = await ipfs.add({ path: file.originalname, content: fileContent });
+      fs.unlinkSync(file.path);
+      
+      const cid = result.cid.toString();
+
+      return res.status(200).json({
+        success: true,
+        message: "File uploaded successfully",
+        ipfsUri: `ipfs://${cid}`,
+        ipfsGatewayUrl: `${process.env.IPFS_GATEWAY || 'https://ipfs.io/ipfs/'}${cid}`,
+        filename: file.originalname,
+        cid: cid,
+        size: file.size,
+        mimetype: file.mimetype
+      });
+    } catch (error: any) {
+      console.error("Upload file error:", error);
+      if (file?.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      res.status(500).json({ error: "Internal server error", details: error.message });
+    }
+  });
+}
+
 export const uploadDocumentController = {
-  uploadDocument
+  uploadDocument,
+  uploadFile
 };

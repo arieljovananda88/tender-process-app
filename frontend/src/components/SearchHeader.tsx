@@ -35,32 +35,6 @@ export function SearchHeader({ title, onSearch }: SearchHeaderProps) {
           />
         </div>
         <div className="flex gap-2">
-          {/* <Select defaultValue="all">
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="construction">Construction</SelectItem>
-              <SelectItem value="it">IT Services</SelectItem>
-              <SelectItem value="consulting">Consulting</SelectItem>
-              <SelectItem value="supplies">Supplies</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="closed">Closed</SelectItem>
-              <SelectItem value="awarded">Awarded</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="icon">
-            <Filter className="h-4 w-4" />
-          </Button> */}
           <Button onClick={handleSearch}>Search</Button>
         </div>
       </div>

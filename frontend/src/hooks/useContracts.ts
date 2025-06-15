@@ -9,7 +9,7 @@ type Document = {
   documentCid: string;
   documentName: string;
   documentType: string;
-  submissionDate: bigint;
+  submissionDate: string;
 };
 
 interface Participant {
@@ -139,9 +139,10 @@ export function useTenderManager() {
 }
 
 export function useDocumentStore() {
-  const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[] }>({
+  const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[], infoDocuments: Document[] }>({
     registrationDocuments: [],
-    tenderDocuments: []
+    tenderDocuments: [],
+    infoDocuments: [],
   });
 
 
@@ -154,8 +155,8 @@ export function useDocumentStore() {
 
       const docs = await contract.getMyDocuments(tenderId);
       const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
-      const tenderDocs = docs.filter((doc: Document) => doc.documentType !== "Registration");
-      setDocuments({ registrationDocuments: registrationDocs, tenderDocuments: tenderDocs });
+      const tenderDocs = docs.filter((doc: Document) => doc.documentType === "Tender");
+      setDocuments({ registrationDocuments: registrationDocs, tenderDocuments: tenderDocs, infoDocuments: [] });
     } catch (error) {
       console.error("Error fetching documents:", error);
     }

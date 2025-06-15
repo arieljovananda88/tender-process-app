@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { SearchHeader } from "@/components/SearchHeader"
 import { TenderCard } from "@/components/TenderCard"
-import { createTender, getMyTenders, type Tender } from "@/lib/api"
+import { createTender, getMyTenders, getMyTendersLength, type Tender } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { useAccount } from "wagmi"
 import { ethers } from "ethers"
@@ -15,6 +15,17 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { toast } from "react-toastify"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+
+const ITEMS_PER_PAGE = 1
 
 interface TenderFormData {
   name: string;
@@ -22,54 +33,6 @@ interface TenderFormData {
   startDate: string;
   endDate: string;
 }
-
-// async function example() {
-//   // 1. Generate key pair
-//   const keyPair = await generateKeyPair();
-
-//   console.log(keyPair.privateKey)
-
-//   const jwk = await window.crypto.subtle.exportKey("jwk", keyPair.privateKey);
-//   const privateKeyString = JSON.stringify(jwk);
-
-//   const passphrase = "my-secret-password";
-
-//   const encryptedResult = await encryptPrivateKeyWithPassphrase(privateKeyString, passphrase);
-
-//   const encKey = btoa(String.fromCharCode(...encryptedResult.encryptedData));
-
-//   const encKeyUint8Array = base64ToUint8Array(encKey);
-
-//   const decryptedResult = await tryDecryptAndParseJSON(encKeyUint8Array, "my-secret-password");
-
-//   if (!decryptedResult.success) {
-//     toast.error("Failed to decrypt private key");
-//     return;
-//   }
-
-//   const privateKey = await importPrivateKeyFromJWK(decryptedResult.parsed);
-//   // 2. Encrypt some data with the public key
-//   const data = new TextEncoder().encode("Hello world");
-
-//   const encryptedData = await window.crypto.subtle.encrypt(
-//     {
-//       name: "RSA-OAEP",
-//     },
-//     keyPair.publicKey,
-//     data
-//   );
-
-//   // 3. Decrypt data with the private key
-//   const decryptedText = await decryptData(privateKey, encryptedData);
-
-//   console.log("Decrypted text:", decryptedText);
-// }
-
-//   request.onerror = () => {
-//     console.error("Failed to fetch encrypted key:", request.error);
-//   };
-// }
-
 
 export default function MyTenders() {
   const { address } = useAccount();
@@ -79,12 +42,52 @@ export default function MyTenders() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { isConnected } = useAccount()
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const [formData, setFormData] = useState<TenderFormData>({
     name: '',
     description: '',
     startDate: '',
     endDate: ''
   })
+
+  const getVisiblePages = () => {
+    const pages = []
+    if (totalPages <= 1) {
+      // Always show at least one page
+      pages.push(1)
+    } else if (totalPages <= 3) {
+      // If total pages is 2 or 3, show all pages
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      // Always show first page
+      pages.push(1)
+      
+      // Show current page and one before/after if possible
+      if (currentPage > 2) {
+        pages.push(currentPage - 1)
+      }
+      if (currentPage !== 1 && currentPage !== totalPages) {
+        pages.push(currentPage)
+      }
+      if (currentPage < totalPages - 1) {
+        pages.push(currentPage + 1)
+      }
+      
+      // Always show last page
+      if (totalPages > 1) {
+        pages.push(totalPages)
+      }
+    }
+    return pages
+  }
+
+  const paginatedTenders = tenders.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -93,11 +96,6 @@ export default function MyTenders() {
       [name]: value
     }));
   };
-
-  // useEffect(() => {
-  //   example()
-  //   example2(address as string)
-  // }, [])
 
   const handleCreateTender = async () => {
     try {
@@ -139,6 +137,7 @@ export default function MyTenders() {
         const tenders = await getMyTenders(address as string);
         if (tenders) {
           setTenders(tenders);
+          setTotalPages(Math.ceil(tenders.length / ITEMS_PER_PAGE))
         }
         toast.success("Tender created successfully")
       } else {
@@ -152,12 +151,36 @@ export default function MyTenders() {
     }
   };
 
+  const handleSearch = (query: string) => {
+    const fetchTenders = async () => {
+      try {
+        const tenders = await getMyTenders(address as string, query)
+        const length = await getMyTendersLength(address as string, query)
+        if (tenders) {
+          setTenders(tenders)
+          setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
+          setCurrentPage(1)
+        } else {
+          setError("Failed to fetch tenders")
+        }
+      } catch (err) {
+        setError("An error occurred while fetching tenders")
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchTenders()
+  }
+
   useEffect(() => {
     const fetchTenders = async () => {
       try {
         const tenders = await getMyTenders(address as string)
+        const length = await getMyTendersLength(address as string)
         if (tenders) {
           setTenders(tenders)
+          setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
         } else {
           setError("Failed to fetch tenders")
         }
@@ -196,7 +219,7 @@ export default function MyTenders() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <SearchHeader title="Search Tenders" />
+      <SearchHeader title="Search Tenders" onSearch={handleSearch}/>
 
       <div className="p-6">
         {isConnected && (
@@ -268,7 +291,7 @@ export default function MyTenders() {
         )}
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {tenders.map((tender, index) => (
+          {paginatedTenders.map((tender, index) => (
             <TenderCard
               key={index}
               id={tender.tenderId}
@@ -279,6 +302,60 @@ export default function MyTenders() {
               endDate={tender.endDate}
             />
           ))}
+        </div>
+
+        <div className="mt-6 flex justify-end">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    if (currentPage > 1) {
+                      setCurrentPage(currentPage - 1)
+                    }
+                  }}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              
+              {getVisiblePages().map((page, index, array) => (
+                <React.Fragment key={page}>
+                  {index > 0 && array[index - 1] !== page - 1 && (
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  )}
+                  <PaginationItem>
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setCurrentPage(page)
+                      }}
+                      isActive={currentPage === page}
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                </React.Fragment>
+              ))}
+
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    if (currentPage < totalPages) {
+                      setCurrentPage(currentPage + 1)
+                    }
+                  }}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
       </div>
     </div>

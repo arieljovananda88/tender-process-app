@@ -69,7 +69,25 @@ export interface KeyResponse {
   iv: string;
 }
 
+export interface UploadDocumentResponse {
+  success: boolean;
+  message: string;
+  documentCid?: string;
+}
 
+export interface UploadDocumentParams {
+  document: File;
+  documentName: string;
+  documentType: string;
+  tenderId: string;
+  participantName: string;
+  participantEmail: string;
+  deadline: number;
+  v: number;
+  r: string;
+  s: string;
+  signer: string;
+}
 
 export async function getTenders(search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
   const response = await axios.post(
@@ -89,6 +107,24 @@ export async function getTenders(search: string = "", page: number = 0, pageSize
   return response.data.data.tenderCreateds;
 }
 
+export async function getTendersLength(search: string = ""): Promise<number> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_TENDER_API,
+    {
+      query: createTenderLengthQuery(search),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.tenderCreateds.length;
+}
+
 export async function getMyTenders(address: string, search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
   const response = await axios.post(
     import.meta.env.VITE_THE_GRAPH_TENDER_API,
@@ -105,6 +141,24 @@ export async function getMyTenders(address: string, search: string = "", page: n
     }
   )
   return response.data.data.tenderCreateds;
+}
+
+export async function getMyTendersLength(address: string, search: string = ""): Promise<number> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_TENDER_API,
+    {
+      query: createMyTenderLengthQuery(address, search),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.tenderCreateds.length;
 }
 
 export async function getAllTenders(page: number = 1, pageSize: number = 10): Promise<PaginatedResponse<Tender>> {
@@ -281,10 +335,60 @@ export async function addParticipant(
   return response.data;
 }
 
+export async function uploadDocumentEncrypted(params: UploadDocumentParams): Promise<UploadDocumentResponse> {
+  const formData = new FormData();
+  formData.append("document", params.document);
+  formData.append("documentName", params.documentName);
+  formData.append("documentType", params.documentType);
+  formData.append("tenderId", params.tenderId);
+  formData.append("deadline", params.deadline.toString());
+  formData.append("v", params.v.toString());
+  formData.append("r", params.r);
+  formData.append("s", params.s);
+  formData.append("signer", params.signer);
+
+  const response = await axios.post<UploadDocumentResponse>(
+    `${API_BASE_URL}/upload-document`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function uploadDocument(params: UploadDocumentParams): Promise<UploadDocumentResponse> {
+  const formData = new FormData();
+  formData.append("document", params.document);
+  formData.append("documentName", params.documentName);
+  formData.append("documentType", params.documentType);
+  formData.append("tenderId", params.tenderId);
+  formData.append("participantName", params.participantName);
+  formData.append("participantEmail", params.participantEmail);
+  formData.append("deadline", params.deadline.toString());
+  formData.append("v", params.v.toString());
+  formData.append("r", params.r);
+  formData.append("s", params.s);
+  formData.append("signer", params.signer);
+
+  const response = await axios.post<UploadDocumentResponse>(
+    `${API_BASE_URL}/upload-document`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+}
+
 const createTenderQuery = (search: string = "", page: number = 0, pageSize: number = 10) => {
   let condition = ""
   if (search) {
-    condition = `where: {name: "${search}" }`
+    condition = `where: {name_contains: "${search}" }`
   }
   const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
   return `
@@ -302,18 +406,63 @@ const createTenderQuery = (search: string = "", page: number = 0, pageSize: numb
   `
 }
 
+const createTenderLengthQuery = (search: string = "") => {
+  let condition = ""
+  if (search) {
+    condition = `(where: { name_contains: "${search}" })`
+  }
+
+  return `
+    query Subgraphs {
+      tenderCreateds${condition} {
+        id
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `;
+};
+
+
 const createMyTenderQuery = (address: string, search: string = "", page: number = 0, pageSize: number = 10) => {
   let condition = ""
   if (address) {
     condition = `where: {owner: "${address}" }`
   }
   if (search) {
-    condition = `where: {owner: "${address}", name: "${search}" }`
+    condition = `where: {owner: "${address}", name_contains: "${search}" }`
   }
   const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
   return `
     query Subgraphs {
       tenderCreateds(${pagination}, ${condition}) {
+        id
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `
+}
+
+const createMyTenderLengthQuery = (address: string, search: string = "") => {
+  let condition = ""
+  if (address) {
+    condition = `where: {owner: "${address}" }`
+  }
+  if (search) {
+    condition = `where: {owner: "${address}", name_contains: "${search}" }`
+  }
+  return `
+    query Subgraphs {
+      tenderCreateds(${condition}) {
         id
         tenderId
         owner
@@ -341,14 +490,11 @@ const createTenderByIDQuery = (id: string) => {
     }
   `
 }
-const createPendingParticipantQuery = (id: string, page: number = 0) => {
-  const pageSize = 10
+const createPendingParticipantQuery = (id: string) => {
   return `
   query Subgraphs {
     pendingParticipantAddeds(
       where: { tenderId: "${id}" }
-      first: ${pageSize}
-      skip: ${page * pageSize}
     ) {
       participant
       name
@@ -357,14 +503,11 @@ const createPendingParticipantQuery = (id: string, page: number = 0) => {
 `;
 }
 
-const createParticipantQuery = (id: string, page: number = 0) => {
-  const pageSize = 10
+const createParticipantQuery = (id: string) => {
   return `
   query Subgraphs {
     participantAddeds(
       where: { tenderId: "${id}" }
-      first: ${pageSize}
-      skip: ${page * pageSize}
     ) {
       participant
       name

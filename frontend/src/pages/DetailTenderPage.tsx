@@ -142,6 +142,22 @@ export default function TenderDetailPage() {
             <p className="text-sm text-muted-foreground whitespace-pre-line">{tender.description}</p>
           </div>
 
+          {/* Documents Section for Owner */}
+          {isOwner && (
+            <div className="border-t pt-4">
+              <h2 className="text-lg font-semibold mb-2">Tender Infomartion Documents</h2>
+              <DocumentList
+                documents={documents.infoDocuments}
+                isRegistered={true}
+                isActive={isActive}
+                typeOfFile="Tender"
+                iconSize={10}
+                textSize="base"
+                canUpload={true}
+              />
+            </div>
+          )}
+
           {/* Participants (only for owners) */}
           {isOwner && (
             <>
@@ -185,6 +201,7 @@ export default function TenderDetailPage() {
               />
             </div>
           )}
+
         </div>
 
         {/* Right sidebar - Application status and Registration Documents */}

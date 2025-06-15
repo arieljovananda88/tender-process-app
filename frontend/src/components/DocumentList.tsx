@@ -3,16 +3,13 @@ import { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FileText, Download, Upload, X, Plus, File, FileImage, Loader2 } from "lucide-react"
-import { formatDate } from "@/lib/utils"
+import { downloadFile, downloadEncryptedFile, formatDate } from "@/lib/utils"
 import { useAccount } from "wagmi"
 import { useParams } from "react-router-dom"
 import { toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { AES, enc, lib, mode, pad } from "crypto-js";
-import { Buffer } from "buffer"
-
-// Polyfill Buffer for browser environment
-window.Buffer = Buffer;
+import { uploadDocument } from "@/lib/api"
+import { ethers } from "ethers"
 
 import {
   Dialog,
@@ -23,13 +20,12 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ethers } from "ethers"
 
 type Document = {
   documentCid: string;
   documentName: string;
   documentType: string;
-  submissionDate: bigint; // `ethers.js` returns BigNumber or bigint
+  submissionDate: string; // `ethers.js` returns BigNumber or bigint
 };
 
 interface DocumentListProps {
@@ -88,44 +84,10 @@ export function DocumentList({
   }
 
   const handleDownload = async (doc: Document) => {
-    try {
-      const symmetricKeyHex = "5e9277da37d9dbb4dac7c436e250ee75333b61969b66027085f8c2f699da7fc5";
-      const ivHex = "8d1e651b73db4411c9160f1dca632411";
-  
-      // 1. Fetch encrypted file from IPFS
-      const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
-      const response = await fetch(ipfsUrl);
-      if (!response.ok) throw new Error("Failed to fetch file from IPFS");
-  
-      const encryptedArrayBuffer = await response.arrayBuffer();
-      const encryptedWordArray = enc.Hex.parse(Buffer.from(encryptedArrayBuffer).toString("hex"));
-  
-      // 2. Prepare key and IV
-      const key = enc.Hex.parse(symmetricKeyHex);
-      const iv = enc.Hex.parse(ivHex);
-  
-      const cipherParams = lib.CipherParams.create({
-        ciphertext: encryptedWordArray
-      });
-  
-      // 4. Decrypt
-      const decrypted = AES.decrypt(cipherParams, key, {
-        iv: iv,
-        mode: mode.CBC,
-        padding: pad.Pkcs7
-      });
-  
-      // 5. Convert decrypted WordArray to binary
-      const decryptedHex = decrypted.toString(enc.Hex);
-      const decryptedBytes = Buffer.from(decryptedHex, "hex");
-  
-      // 6. Download blob (assuming PDF)
-      const blob = new Blob([decryptedBytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-    } catch (error) {
-      console.error("Download error:", error);
-      toast.error("Failed to decrypt and open document.");
+    if (doc.documentType === "Info") {
+      await downloadFile(doc);
+    } else {
+      await downloadEncryptedFile(address as string, doc, "buls2012");
     }
   };
   
@@ -145,16 +107,10 @@ export function DocumentList({
       toast.error("Tender ID not found.")
       return
     }
+
     setIsUploadModalOpen(false)
     setIsUploading(true)
-    const formData = new FormData()
-    formData.append("document", selectedFile)
-    formData.append("documentName", fileName)
-    formData.append("documentType", typeOfFile)
-    formData.append("tenderId", tenderId)
-    formData.append("participantName", JSON.parse(localStorage.getItem('user') || '{}').name || '')
-    formData.append("participantEmail", JSON.parse(localStorage.getItem('user') || '{}').email || '')
-  
+
     try {
       // Generate signature
       const provider = new ethers.providers.Web3Provider(window.ethereum)
@@ -173,26 +129,25 @@ export function DocumentList({
       const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
       const splitSig = ethers.utils.splitSignature(signature)
 
-      // Add signature to formData
-      formData.append("deadline", deadline.toString())
-      formData.append("v", splitSig.v.toString())
-      formData.append("r", splitSig.r)
-      formData.append("s", splitSig.s)
-      formData.append("signer", address)
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
 
-      // Upload document with signature
-      const uploadResponse = await fetch("http://localhost:9090/upload-document", {
-        method: "POST",
-        body: formData,
-      })
-  
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed with status ${uploadResponse.status}`)
+      const response = await uploadDocument({
+        document: selectedFile,
+        documentName: fileName,
+        documentType: typeOfFile,
+        tenderId,
+        participantName: user.name || '',
+        participantEmail: user.email || '',
+        deadline,
+        v: splitSig.v,
+        r: splitSig.r,
+        s: splitSig.s,
+        signer: address
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || 'Upload failed');
       }
-  
-      const uploadResult = await uploadResponse.json()
-
-      console.log(uploadResult)
 
       // Reset UI
       setSelectedFile(null)
