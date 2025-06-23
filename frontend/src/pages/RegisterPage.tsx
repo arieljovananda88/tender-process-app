@@ -57,10 +57,8 @@ const RegisterPage: React.FC = () => {
     }
 
     try {
-      const privateKeyString = JSON.stringify(privateKey);
-      const encryptedResult = await encryptPrivateKeyWithPassphrase(privateKeyString, passphrase);
+      const encryptedResult = await encryptPrivateKeyWithPassphrase(privateKey, passphrase);
 
-      console.log(address);
       
       // Store encrypted key in IndexedDB
       const db = await openDB();

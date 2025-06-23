@@ -3,18 +3,18 @@ import { twMerge } from "tailwind-merge"
 import { AES, enc, lib, mode, pad } from "crypto-js";
 import { getKey } from "./api";
 import { toast } from "react-toastify";
+import { Document } from "@/lib/types"
+import { Buffer } from "buffer";
 
+window.Buffer = Buffer;
+
+
+const DEFAULT_IV = new Uint8Array(12); // 12-byte zero IV
+const DEFAULT_SALT = new Uint8Array(16);
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 } 
-
-type Document = {
-  documentCid: string;
-  documentName: string;
-  documentType: string;
-  submissionDate: string;
-};
 
 export const formatDate = (timestamp: string, type: string = "int") => {
   const date = type !== 'string' 
@@ -53,9 +53,6 @@ export const calculateTimeRemaining = (endDate: string) => {
 
   return parts.join(', ') + ' remaining'
 }
-
-const DEFAULT_IV = new Uint8Array(12); // 12-byte zero IV
-const DEFAULT_SALT = new Uint8Array(16);
 
 export async function importPrivateKeyFromJWK(jwk: any) {
   return await window.crypto.subtle.importKey(
@@ -119,10 +116,15 @@ export async function encryptPrivateKeyWithPassphrase(privateKeyString: string, 
 
 export async function tryDecryptAndParseJSON(encryptedData: Uint8Array, passphrase: string) {
   try {
+    let parsed: any;
     const decrypted = await decryptPrivateKeyWithPassphrase(encryptedData, passphrase);
-    
-    // Try parsing JSON
-    const parsed = JSON.parse(decrypted);
+
+    console.log(decrypted)
+  
+    parsed = JSON.parse(decrypted);
+
+    console.log('Parsed object:', parsed);
+    console.log('Keys in parsed object:', Object.keys(parsed));
 
     // Optionally, check if it's a valid JWK structure
     if (!parsed.kty || !parsed.n || !parsed.e) {
@@ -262,6 +264,18 @@ export function stringToArrayBuffer(str: string): ArrayBuffer {
   return new TextEncoder().encode(str).buffer;
 }
 
+const MIME_TYPE_MAP: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png"
+};
+
+export function getMimeType(format: string): string {
+  return MIME_TYPE_MAP[format.toLowerCase()] || "application/octet-stream";
+}
+
+
 export async function downloadEncryptedFile(address: string, doc: Document, passphrase: string) {
   try {
     const {encryptedKey, iv} = await getKey(address as string, doc.documentCid)
@@ -300,7 +314,7 @@ export async function downloadEncryptedFile(address: string, doc: Document, pass
     const decryptedHex = decrypted.toString(enc.Hex);
     const decryptedBytes = Buffer.from(decryptedHex, "hex");
 
-    const blob = new Blob([decryptedBytes], { type: "application/pdf" });
+    const blob = new Blob([decryptedBytes], { type: getMimeType(doc.documentFormat) });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
   } catch (error) {
@@ -315,19 +329,14 @@ export async function downloadFile(doc: Document) {
     const response = await fetch(ipfsUrl);
     if (!response.ok) throw new Error("Failed to fetch file from IPFS");
 
-    const blob = await response.blob();
+    console.log(doc.documentFormat)
+    console.log(getMimeType(doc.documentFormat))
+
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: getMimeType(doc.documentFormat) });
     const url = URL.createObjectURL(blob);
     
-    // Create a temporary link element
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = doc.documentName; // Use the original filename
-    document.body.appendChild(link);
-    link.click();
-    
-    // Cleanup
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    window.open(url, "_blank");
   } catch (error) {
     console.error("Download error:", error);
     toast.error("Failed to download document.");

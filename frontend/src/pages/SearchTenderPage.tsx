@@ -12,7 +12,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 
-const ITEMS_PER_PAGE = 1
+const ITEMS_PER_PAGE = 12
 
 export default function SearchTenders() {
   const [tenders, setTenders] = useState<Tender[]>([])

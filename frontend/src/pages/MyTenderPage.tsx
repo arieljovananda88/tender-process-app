@@ -25,7 +25,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 
-const ITEMS_PER_PAGE = 1
+const ITEMS_PER_PAGE = 12
 
 interface TenderFormData {
   name: string;
@@ -219,8 +219,8 @@ export default function MyTenders() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <SearchHeader title="Search Tenders" onSearch={handleSearch}/>
-
+      <SearchHeader title="Search Tenders" onSearch={handleSearch} />
+      
       <div className="p-6">
         {isConnected && (
           <div className="mb-6 flex justify-end">

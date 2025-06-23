@@ -11,14 +11,8 @@ import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
 import { toast } from "react-toastify"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getUser } from "@/lib/api"
-
-type Document = {
-  documentCid: string;
-  documentName: string;
-  documentType: string;
-  submissionDate: string;
-};
+import { getTenderById, getUser, Tender } from "@/lib/api"
+import { Document } from "@/lib/types"
 
 interface Participant {
   address: string;
@@ -53,12 +47,18 @@ export default function ParticipantSubmissionsPage() {
   const tenderId = params.id as string
   const participantAddress = params.address as string
   const { fetchParticipantDocuments } = useDocumentStore()
-  const { isPendingParticipant, addParticipant } = useTenderManager()
+  const { isPendingParticipant, addParticipant, isParticipant } = useTenderManager()
   const [isPending, setIsPending] = useState(false)
+  const [isRegistered, setIsRegistered] = useState(false)
+  const [tender, setTender] = useState<Tender | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[] }>({
     registrationDocuments: [],
     tenderDocuments: []
   });
+
+  console.log(new Date(Number(tender?.endDate) * 1000))
+  console.log(new Date())
 
   useEffect(() => {
     const loadData = async () => {
@@ -69,6 +69,7 @@ export default function ParticipantSubmissionsPage() {
         }
         console.log(tenderId, participantAddress)
         const pending = await isPendingParticipant(tenderId, participantAddress);
+        const registered = await isParticipant(tenderId, participantAddress);
         const participant = await getUser(participantAddress);
         setParticipant({
           address: participantAddress,
@@ -76,8 +77,21 @@ export default function ParticipantSubmissionsPage() {
           email: participant.email
         });
         setIsPending(pending); 
+        setIsRegistered(registered);
+        // Fetch tender details
+        const tenderData = await getTenderById(tenderId);
+        setTender(tenderData);
       }
     };
+    const fetchTender = async () => {
+      try {
+        const tender = await getTenderById(tenderId as string)
+        setTender(tender)
+      } catch (err) {
+        setError("Failed to fetch tender")
+      }
+    }
+    fetchTender()
     loadData();
   }, []);
 
@@ -99,6 +113,11 @@ export default function ParticipantSubmissionsPage() {
       console.error("Error adding participant:", error);
       toast.error("Failed to add participant");
     }
+  };
+
+  const handleChooseWinner = async () => {
+    // TODO: Implement choose winner logic (API call or contract interaction)
+    toast.success('Participant chosen as winner!');
   };
 
   const renderDocuments = (docs: Document[]) => (
@@ -149,10 +168,24 @@ export default function ParticipantSubmissionsPage() {
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
               <CardTitle className="text-xl">Participant's Submissions</CardTitle>
-              {isPending && (
-                <Button onClick={handleAddParticipant}>
-                  Add to Tender
-                </Button>
+              <div className="flex gap-2">
+                {isPending && (
+                  <Button onClick={handleAddParticipant}>
+                    Add to Tender
+                  </Button>
+                )}
+                {/* Choose as Winner button logic */}
+                {tender &&
+                  isRegistered &&
+                  address?.toLowerCase() === tender.owner?.toLowerCase() &&
+                  new Date() > new Date(tender.endDate) && (
+                    <Button onClick={handleChooseWinner}>
+                      Choose as Winner
+                    </Button>
+                  )}
+              </div>
+              {error && (
+                <div className="text-red-500">{error}</div>
               )}
             </div>
           </CardHeader>

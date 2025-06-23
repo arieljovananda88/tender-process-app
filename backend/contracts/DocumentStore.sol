@@ -13,10 +13,27 @@ contract DocumentStore {
         string documentCid;
         string documentName;
         string documentType;
+        string documentFormat;
         uint256 submissionDate;
     }
 
+    struct UploadInput {
+        string tenderId;
+        string documentCid;
+        string documentName;
+        string documentType;
+        string documentFormat;
+        string participantName;
+        string participantEmail;
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     mapping(string => mapping(address => Document[])) public tenderDocuments;
+
+    mapping(string => Document[]) public tenderInfoDocuments;
 
     ITenderManager public tenderManager;
 
@@ -26,52 +43,74 @@ contract DocumentStore {
         tenderManager = ITenderManager(tenderManagerAddress);
     }
 
-
-    function uploadDocumentWithSignature(
-        string memory tenderId,
-        string memory documentCid,
-        string memory documentName,
-        string memory documentType,
-        string memory participantName,
-        string memory participantEmail,
-        uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) public {
+    function uploadTenderInfoDocumentWithSignature(UploadInput memory input) public {
         // Create the message hash
-        bytes32 messageHash = keccak256(abi.encodePacked(tenderId, documentName, deadline));
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        bytes32 messageHash = keccak256(abi.encodePacked(input.tenderId, input.documentName, input.deadline));
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
+        );
 
         // Recover signer
-        address signer = ecrecover(ethSignedMessageHash, v, r, s);
+        address signer = ecrecover(ethSignedMessageHash, input.v, input.r, input.s);
         require(signer != address(0), "Invalid signature");
 
         // Check deadline to avoid replay
-        require(block.timestamp <= deadline, "Signature expired");
+        require(block.timestamp <= input.deadline, "Signature expired");
 
-        // Validate participant
-        if (keccak256(bytes(documentType)) == keccak256(bytes("tender"))) {
+        // Validate owner
+        require(
+            tenderManager.getOwner(input.tenderId) == signer,
+            "Only tender owner can upload tender info documents"
+        );
+
+        Document memory newDocument = Document({
+            documentCid: input.documentCid,
+            documentName: input.documentName,
+            documentType: "info",
+            documentFormat: input.documentFormat,
+            submissionDate: block.timestamp
+        });
+
+        tenderInfoDocuments[input.tenderId].push(newDocument);
+
+        emit DocumentUploaded(input.tenderId, signer, input.documentCid, input.documentName, block.timestamp);
+    }
+
+
+
+    function uploadDocumentWithSignature(UploadInput memory input) public {
+        bytes32 messageHash = keccak256(abi.encodePacked(input.tenderId, input.documentName, input.deadline));
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+
+        address signer = ecrecover(ethSignedMessageHash, input.v, input.r, input.s);
+        require(signer != address(0), "Invalid signature");
+
+        require(block.timestamp <= input.deadline, "Signature expired");
+
+        if (keccak256(bytes(input.documentType)) == keccak256(bytes("tender"))) {
             require(
-                tenderManager.isParticipant(tenderId, signer),
+                tenderManager.isParticipant(input.tenderId, signer),
                 "Only participants can upload tender documents"
             );
         }
 
         Document memory newDocument = Document({
-            documentCid: documentCid,
-            documentName: documentName,
-            documentType: documentType,
+            documentCid: input.documentCid,
+            documentName: input.documentName,
+            documentType: input.documentType,
+            documentFormat: input.documentFormat,
             submissionDate: block.timestamp
         });
 
-        tenderDocuments[tenderId][signer].push(newDocument);
+        tenderDocuments[input.tenderId][signer].push(newDocument);
 
-        if (!tenderManager.isParticipant(tenderId, signer) && !tenderManager.isPendingParticipant(tenderId, signer)) {
-            tenderManager.addPendingParticipant(tenderId, participantName, participantEmail, signer);
+        if (!tenderManager.isParticipant(input.tenderId, signer) &&
+            !tenderManager.isPendingParticipant(input.tenderId, signer)) {
+            tenderManager.addPendingParticipant(input.tenderId, input.participantName, input.participantEmail, signer);
         }
 
-        emit DocumentUploaded(tenderId, signer, documentCid, documentName, block.timestamp);
+        emit DocumentUploaded(input.tenderId, signer, input.documentCid, input.documentName, block.timestamp);
     }
-
 
     function getMyDocuments(string memory tenderId) public view returns (Document[] memory) {
         return tenderDocuments[tenderId][msg.sender];
@@ -92,4 +131,9 @@ contract DocumentStore {
         require(tenderManager.getOwner(tenderId) == msg.sender, "Only tender owner can view this");
         return tenderDocuments[tenderId][user];
     }
+
+    function getTenderInfoDocuments(string memory tenderId) public view returns (Document[] memory) {
+        return tenderInfoDocuments[tenderId];
+    }
+
 }

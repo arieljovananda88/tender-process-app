@@ -4,13 +4,7 @@ import { ethers } from 'ethers';
 import TenderManagerArtifact from '../../../backend/artifacts/contracts/TenderManager.sol/TenderManager.json';
 import DocumentStoreArtifact from '../../../backend/artifacts/contracts/DocumentStore.sol/DocumentStore.json';
 import { addParticipant as addParticipantApi, getParticipants, getPendingParticipants, ParticipantResponse } from '../lib/api';
-
-type Document = {
-  documentCid: string;
-  documentName: string;
-  documentType: string;
-  submissionDate: string;
-};
+import { Document } from "@/lib/types"
 
 interface Participant {
     address: string
@@ -156,7 +150,8 @@ export function useDocumentStore() {
       const docs = await contract.getMyDocuments(tenderId);
       const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
       const tenderDocs = docs.filter((doc: Document) => doc.documentType === "Tender");
-      setDocuments({ registrationDocuments: registrationDocs, tenderDocuments: tenderDocs, infoDocuments: [] });
+      const infoDocs = await contract.getTenderInfoDocuments(tenderId);
+      setDocuments({ registrationDocuments: registrationDocs, tenderDocuments: tenderDocs, infoDocuments: infoDocs });
     } catch (error) {
       console.error("Error fetching documents:", error);
     }
@@ -172,10 +167,11 @@ export function useDocumentStore() {
       const docs = await contract.getDocumentsOfTenderAsOwner(tenderId, participantAddress);
       const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
       const tenderDocs = docs.filter((doc: Document) => doc.documentType !== "Registration");
-      return { registrationDocuments: registrationDocs, tenderDocuments: tenderDocs };
+      const infoDocs = await contract.getTenderInfoDocuments(tenderId);
+      return { registrationDocuments: registrationDocs, tenderDocuments: tenderDocs, infoDocuments: infoDocs };
     } catch (error) {
       console.error("Error fetching participant documents:", error);
-      return { registrationDocuments: [], tenderDocuments: [] };
+      return { registrationDocuments: [], tenderDocuments: [], infoDocuments: [] };
     }
   };
 

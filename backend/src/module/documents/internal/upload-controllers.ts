@@ -47,6 +47,7 @@ async function uploadDocument(req: any, res: any) {
       tenderId,
       documentName,
       documentType,
+      documentFormat,
       participantName,
       participantEmail,
       deadline,
@@ -60,7 +61,7 @@ async function uploadDocument(req: any, res: any) {
       return res.status(400).json({ error: err ? 'File upload failed' : 'No file provided' });
     }
 
-    if (!tenderId || !documentName || !documentType || !participantName || !participantEmail || !deadline || !v || !r || !s || !signer) {
+    if (!tenderId || !documentName || !documentType || !participantName || !participantEmail || !deadline || !v || !r || !s || !signer || !documentFormat) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -72,18 +73,20 @@ async function uploadDocument(req: any, res: any) {
       // Upload document with signature to smart contract
       const documentStore = getDocumentStoreContractInstance();
       const publicKeyStorageContract = getPublicKeyStoregeContractInstance()
-      const uploadDocumentTx = await documentStore.uploadDocumentWithSignature(
+      const uploadInput = {
         tenderId,
-        cid,
+        documentCid: cid,
         documentName,
         documentType,
+        documentFormat,
         participantName,
         participantEmail,
         deadline,
         v,
         r,
         s
-      );
+      };
+      const uploadDocumentTx = await documentStore.uploadDocumentWithSignature(uploadInput);
       await uploadDocumentTx.wait();
 
       // Get tender owner and emit keys
@@ -91,14 +94,25 @@ async function uploadDocument(req: any, res: any) {
       const owner = await tenderManager.getOwner(tenderId);
 
       const ownerPublicKeyInContract = await publicKeyStorageContract.getPublicKey(owner);
+      const participantPublicKeyInContract = await publicKeyStorageContract.getPublicKey(signer);
 
-      const pem = jwkToPem(JSON.parse(ownerPublicKeyInContract));
+      const ownerPem = jwkToPem(JSON.parse(ownerPublicKeyInContract));
+      const participantPem = jwkToPem(JSON.parse(participantPublicKeyInContract));
 
       const symmetricKeyBuffer = Buffer.from(symmetricKey, "utf8");
 
       const ownerEncryptedSymmetricBuffer = crypto.publicEncrypt(
         {
-          key: pem,
+          key: ownerPem,
+          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+          oaepHash: 'sha256'
+        },
+        symmetricKeyBuffer
+      );
+
+      const participantEncryptedSymmetricBuffer = crypto.publicEncrypt(
+        {
+          key: participantPem,
           padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
           oaepHash: 'sha256'
         },
@@ -106,12 +120,13 @@ async function uploadDocument(req: any, res: any) {
       );
 
       const ownerEncryptedSymmetricKey = ownerEncryptedSymmetricBuffer.toString('base64');
+      const participantEncryptedSymmetricKey = participantEncryptedSymmetricBuffer.toString('base64');
 
       const keyManager = getKeyManagerContractInstance();
       const emitKeyOwnerTx = await keyManager.emitKey(owner, ownerEncryptedSymmetricKey, iv, cid, v, r, s, deadline); //TODO encrypt symmetricKey with public key of owner
       await emitKeyOwnerTx.wait();
 
-      const emitKeySignerTx = await keyManager.emitKey(signer, symmetricKey, iv, cid, v, r, s, deadline); //TODO encrypt symmetricKey with public key of signer
+      const emitKeySignerTx = await keyManager.emitKey(signer, participantEncryptedSymmetricKey, iv, cid, v, r, s, deadline); //TODO encrypt symmetricKey with public key of signer
       await emitKeySignerTx.wait();
 
       return res.status(200).json({
@@ -137,7 +152,7 @@ async function uploadDocument(req: any, res: any) {
   });
 }
 
-async function uploadFile(req: any, res: any) {
+async function uploadInfoDocument(req: any, res: any) {
   handleFileUpload(req, res, async function(err: any) {
     const { file } = req;
 
@@ -146,6 +161,8 @@ async function uploadFile(req: any, res: any) {
     }
 
     try {
+      const documentStore = getDocumentStoreContractInstance();
+      const { tenderId, documentName, deadline, v, r, s, documentFormat } = req.body;
       const { create } = await import("ipfs-http-client");
       const ipfs = initIPFSClient(create);
       
@@ -155,6 +172,23 @@ async function uploadFile(req: any, res: any) {
       fs.unlinkSync(file.path);
       
       const cid = result.cid.toString();
+
+      const uploadInput = {
+        tenderId,
+        documentCid: cid,
+        documentName,
+        documentType: "",
+        documentFormat,
+        participantName: "",
+        participantEmail: "",
+        deadline,
+        v,
+        r,
+        s
+      };
+
+      const uploadDocumentTx = await documentStore.uploadTenderInfoDocumentWithSignature(uploadInput);
+      await uploadDocumentTx.wait();
 
       return res.status(200).json({
         success: true,
@@ -176,5 +210,5 @@ async function uploadFile(req: any, res: any) {
 
 export const uploadDocumentController = {
   uploadDocument,
-  uploadFile
+  uploadInfoDocument
 };

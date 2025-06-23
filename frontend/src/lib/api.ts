@@ -79,6 +79,7 @@ export interface UploadDocumentParams {
   document: File;
   documentName: string;
   documentType: string;
+  documentFormat: string;
   tenderId: string;
   participantName: string;
   participantEmail: string;
@@ -88,6 +89,18 @@ export interface UploadDocumentParams {
   s: string;
   signer: string;
 }
+
+export interface UploadInfoDocumentParams {
+  document: File;
+  documentName: string;
+  documentFormat: string;
+  tenderId: string;
+  deadline: number;
+  v: number;
+  r: string;
+  s: string;
+  signer: string;
+} 
 
 export async function getTenders(search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
   const response = await axios.post(
@@ -232,11 +245,11 @@ export async function createTender(
     
   }
 
-export async function getPendingParticipants(id: string, page: number = 0): Promise<ParticipantResponse[]> {
+export async function getPendingParticipants(id: string): Promise<ParticipantResponse[]> {
   const response = await axios.post(
     import.meta.env.VITE_THE_GRAPH_TENDER_API,
     {
-      query: createPendingParticipantQuery(id, page),
+      query: createPendingParticipantQuery(id),
       operationName: 'Subgraphs',
       variables: {}
     },
@@ -250,11 +263,11 @@ export async function getPendingParticipants(id: string, page: number = 0): Prom
   return response.data.data.pendingParticipantAddeds;
 }
 
-export async function getParticipants(id: string, page: number = 0): Promise<ParticipantResponse[]> {
+export async function getParticipants(id: string): Promise<ParticipantResponse[]> {
   const response = await axios.post(
     import.meta.env.VITE_THE_GRAPH_TENDER_API,
     {
-      query: createParticipantQuery(id, page),
+      query: createParticipantQuery(id),
       operationName: 'Subgraphs',
       variables: {}
     },
@@ -335,11 +348,14 @@ export async function addParticipant(
   return response.data;
 }
 
-export async function uploadDocumentEncrypted(params: UploadDocumentParams): Promise<UploadDocumentResponse> {
+export async function uploadDocument(params: UploadDocumentParams): Promise<UploadDocumentResponse> {
   const formData = new FormData();
   formData.append("document", params.document);
   formData.append("documentName", params.documentName);
   formData.append("documentType", params.documentType);
+  formData.append("documentFormat", params.documentFormat);
+  formData.append("participantName", params.participantName);
+  formData.append("participantEmail", params.participantEmail);
   formData.append("tenderId", params.tenderId);
   formData.append("deadline", params.deadline.toString());
   formData.append("v", params.v.toString());
@@ -359,14 +375,12 @@ export async function uploadDocumentEncrypted(params: UploadDocumentParams): Pro
   return response.data;
 }
 
-export async function uploadDocument(params: UploadDocumentParams): Promise<UploadDocumentResponse> {
+export async function uploadInfoDocument(params: UploadInfoDocumentParams): Promise<UploadDocumentResponse> {
   const formData = new FormData();
   formData.append("document", params.document);
   formData.append("documentName", params.documentName);
-  formData.append("documentType", params.documentType);
+  formData.append("documentFormat", params.documentFormat);
   formData.append("tenderId", params.tenderId);
-  formData.append("participantName", params.participantName);
-  formData.append("participantEmail", params.participantEmail);
   formData.append("deadline", params.deadline.toString());
   formData.append("v", params.v.toString());
   formData.append("r", params.r);
@@ -374,7 +388,7 @@ export async function uploadDocument(params: UploadDocumentParams): Promise<Uplo
   formData.append("signer", params.signer);
 
   const response = await axios.post<UploadDocumentResponse>(
-    `${API_BASE_URL}/upload-document`,
+    `${API_BASE_URL}/upload-document/info`,
     formData,
     {
       headers: {

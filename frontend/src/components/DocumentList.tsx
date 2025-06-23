@@ -8,8 +8,9 @@ import { useAccount } from "wagmi"
 import { useParams } from "react-router-dom"
 import { toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { uploadDocument } from "@/lib/api"
+import { uploadDocument, uploadInfoDocument } from "@/lib/api"
 import { ethers } from "ethers"
+import { Document } from "@/lib/types"
 
 import {
   Dialog,
@@ -21,18 +22,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-type Document = {
-  documentCid: string;
-  documentName: string;
-  documentType: string;
-  submissionDate: string; // `ethers.js` returns BigNumber or bigint
-};
-
 interface DocumentListProps {
   documents: Document[]
   isRegistered?: boolean
   isActive?: boolean
-  typeOfFile: "Tender" | "Registration"
+  typeOfFile: "Tender" | "Registration" | "Info"
   allowedFileTypes?: string[]
   iconSize?: number
   textSize?: "sm" | "base" | "lg"
@@ -56,15 +50,10 @@ export function DocumentList({
   const { id: tenderId } = useParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const getFileIcon = (filename: string) => {
-    const extension = filename.split(".").pop()?.toLowerCase()
-
-    switch (extension) {
+  const getFileIcon = (format: string) => {
+    switch (format) {
       case "pdf":
         return <FileText className={`h-${iconSize} w-${iconSize} text-red-500`} />
-      case "doc":
-      case "docx":
-        return <File className={`h-${iconSize} w-${iconSize} text-blue-500`} />
       case "jpg":
       case "jpeg":
       case "png":
@@ -84,7 +73,8 @@ export function DocumentList({
   }
 
   const handleDownload = async (doc: Document) => {
-    if (doc.documentType === "Info") {
+    console.log(doc)
+    if (doc.documentType === "info") {
       await downloadFile(doc);
     } else {
       await downloadEncryptedFile(address as string, doc, "buls2012");
@@ -98,12 +88,12 @@ export function DocumentList({
       return
     }
 
-    if(!address) {
+    if (!address) {
       toast.error("Please connect your wallet to upload documents.")
       return
     }
 
-    if(!tenderId) {
+    if (!tenderId) {
       toast.error("Tender ID not found.")
       return
     }
@@ -129,21 +119,41 @@ export function DocumentList({
       const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
       const splitSig = ethers.utils.splitSignature(signature)
 
-      const user = JSON.parse(localStorage.getItem('user') || '{}')
-
-      const response = await uploadDocument({
-        document: selectedFile,
-        documentName: fileName,
-        documentType: typeOfFile,
-        tenderId,
-        participantName: user.name || '',
-        participantEmail: user.email || '',
-        deadline,
-        v: splitSig.v,
-        r: splitSig.r,
-        s: splitSig.s,
-        signer: address
-      });
+      let response;
+      const documentFormat = selectedFile.name.split('.').pop() || '';
+      if (typeOfFile === "Info") {
+        // Only send required fields for Info documents
+        response = await uploadInfoDocument({
+          document: selectedFile,
+          documentName: fileName,
+          documentFormat,
+          tenderId,
+          deadline,
+          v: splitSig.v,
+          r: splitSig.r,
+          s: splitSig.s,
+          signer: address,
+        });
+      } else {
+        // Send all fields for other document types
+        console.log(typeOfFile)
+        const user = JSON.parse(localStorage.getItem('user') || '{}')
+        console.log(user)
+        response = await uploadDocument({
+          document: selectedFile,
+          documentName: fileName,
+          documentType: typeOfFile,
+          documentFormat,
+          tenderId,
+          participantName: user.name || '',
+          participantEmail: user.email || '',
+          deadline,
+          v: splitSig.v,
+          r: splitSig.r,
+          s: splitSig.s,
+          signer: address
+        });
+      }
 
       if (!response.success) {
         throw new Error(response.message || 'Upload failed');
@@ -169,7 +179,6 @@ export function DocumentList({
     <Card>
       <CardContent className="p-4 space-y-4">
         <div className="flex justify-between items-center">
-          {/* <h2 className="text-lg font-semibold">Your {typeOfFile} Documents</h2> */}
           {canUpload && isActive && (
             <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)} className="h-8">
               <Plus className="h-4 w-4 mr-1" />
@@ -189,7 +198,7 @@ export function DocumentList({
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      {getFileIcon(doc.documentName)}
+                      {getFileIcon(doc.documentFormat)}
                       <div className="min-w-0 flex-1">
                         <h3 className={`font-medium text-${textSize} truncate`}>{doc.documentName}</h3>
                         <p className="text-xs text-muted-foreground mt-1">
@@ -253,7 +262,7 @@ export function DocumentList({
             {selectedFile && (
               <div className="border rounded-md p-3 flex items-center justify-between">
                 <div className="flex items-center">
-                  {getFileIcon(selectedFile.name)}
+                  {getFileIcon(selectedFile.name.split('.').pop() || '')}
                   <div className="ml-2">
                     <p className="text-sm font-medium truncate max-w-[180px]">{selectedFile.name}</p>
                     <p className="text-xs text-muted-foreground">

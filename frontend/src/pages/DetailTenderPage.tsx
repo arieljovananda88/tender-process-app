@@ -137,26 +137,23 @@ export default function TenderDetailPage() {
             <span>{calculateTimeRemaining(tender.endDate)}</span>
           </div>
 
-          <div className="border-t pt-4">
+          {/* <div className="border-t pt-4">
             <h2 className="text-lg font-semibold mb-2">Description</h2>
             <p className="text-sm text-muted-foreground whitespace-pre-line">{tender.description}</p>
-          </div>
+          </div> */}
 
-          {/* Documents Section for Owner */}
-          {isOwner && (
-            <div className="border-t pt-4">
-              <h2 className="text-lg font-semibold mb-2">Tender Infomartion Documents</h2>
-              <DocumentList
-                documents={documents.infoDocuments}
-                isRegistered={true}
-                isActive={isActive}
-                typeOfFile="Tender"
-                iconSize={10}
-                textSize="base"
-                canUpload={true}
-              />
-            </div>
-          )}
+          <div className="border-t pt-4">
+            <h2 className="text-lg font-semibold mb-2">Tender Information Documents</h2>
+            <DocumentList
+              documents={documents.infoDocuments}
+              isRegistered={true}
+              isActive={isActive}
+              typeOfFile="Info"
+              iconSize={10}
+              textSize="base"
+              canUpload={isOwner}
+            />
+          </div>
 
           {/* Participants (only for owners) */}
           {isOwner && (
