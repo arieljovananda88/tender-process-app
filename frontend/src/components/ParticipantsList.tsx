@@ -15,7 +15,7 @@ interface ParticipantsListProps {
   isOwner: boolean
   forPending: boolean
   participants: Participant[]
-  winnerId: string
+  winnerId: string | null
   tenderId: string
 }
 
@@ -27,14 +27,14 @@ export function ParticipantsList({ isOwner, forPending = false, participants, wi
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-h-96 overflow-y-auto">
       {participants.length === 0 ? (
         <p className="text-center text-muted-foreground py-4">
           {forPending ? "No pending participants" : "No participants yet"}
         </p>
       ) : (
         participants.map((participant, index) => {
-          const isWinner = participant.address === winnerId
+          const isWinner = winnerId && participant.address.toLowerCase() === winnerId.toLowerCase()
 
           return (
             <Card key={index} className={`overflow-hidden ${isWinner ? "border-green-300 bg-green-50" : ""}`}>

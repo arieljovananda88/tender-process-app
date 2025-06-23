@@ -75,6 +75,11 @@ export interface UploadDocumentResponse {
   documentCid?: string;
 }
 
+export interface SelectWinnerResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface UploadDocumentParams {
   document: File;
   documentName: string;
@@ -393,6 +398,26 @@ export async function uploadInfoDocument(params: UploadInfoDocumentParams): Prom
     {
       headers: {
         'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function selectWinner(tenderId: string, winner: string, reason: string, deadline: number, v: number, r: string, s: string): Promise<UploadDocumentResponse> {
+  const response = await axios.post<SelectWinnerResponse>(
+    `${API_BASE_URL}/tender/${tenderId}/select-winner`,
+    {
+      winner,
+      reason,
+      deadline,
+      v,
+      r,
+      s
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
       },
     }
   );

@@ -97,16 +97,20 @@ export async function selectWinner(req: Request, res: Response) {
     const tenderManager = getTenderManagerContractInstance();
     try {
         const { tenderId } = req.params;
-        const { owner, winner } = req.body;
+        const { winner, reason, v, r, s, deadline } = req.body;
 
-        if (!tenderId || !owner || !winner) {
+        if (!tenderId || !winner || !reason || !v || !r || !s || !deadline) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
         const tx = await tenderManager.selectWinner(
             tenderId,
-            owner,
-            winner
+            winner,
+            reason,
+            v,
+            r,
+            s,
+            deadline
         );
         await tx.wait();
 
@@ -116,6 +120,6 @@ export async function selectWinner(req: Request, res: Response) {
         });
     } catch (error: any) {
         console.error("Select winner error:", error);
-        return res.status(500).json({ error: "Failed to select winner", details: error.message });
+        return res.status(500).json({ success: false, error: "Failed to select winner", details: error.message });
     }
 }

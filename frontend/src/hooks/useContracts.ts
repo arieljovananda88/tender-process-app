@@ -67,6 +67,20 @@ export function useTenderManager() {
     }
   };
 
+  const getWinner = async (tenderId: string) => {
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const tenderManagerAddress = import.meta.env.VITE_TENDER_MANAGER_CONTRACT_ADDRESS;    
+      const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
+
+      return await contract.getWinner(tenderId);
+    } catch (error) {
+      console.error("Error checking winner status:", error);
+      return false;
+    }
+  };
+
   const isParticipant = async (tenderId: string, participantAddress: string) => {
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -128,7 +142,8 @@ export function useTenderManager() {
     pendingParticipants,
     isPendingParticipant,
     isParticipant,
-    addParticipant
+    addParticipant,
+    getWinner
   };
 }
 

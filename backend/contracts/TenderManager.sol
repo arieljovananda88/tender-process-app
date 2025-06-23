@@ -103,10 +103,15 @@ contract TenderManager {
         emit ParticipantAdded(tenderId, participant, name, email, block.timestamp);
     }
 
-    function selectWinner(string memory tenderId, address winner, string memory reason) external {
+    function selectWinner(string memory tenderId, address winner, string memory reason, uint8 v, bytes32 r, bytes32 s, uint256 deadline) external {
         Tender storage tender = tenders[tenderId];
-        require(msg.sender == tender.owner, "Only owner can select winner");
-        require(block.timestamp > tender.endDate, "Tender not ended");
+
+        bytes32 messageHash = keccak256(abi.encodePacked(tenderId, deadline));
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        address ownerAddress = ecrecover(ethSignedMessageHash, v, r, s);
+
+        require(ownerAddress == tender.owner, "Only owner can select winner");
+        // require(block.timestamp > tender.endDate, "Tender not ended");
         require(participants[tenderId][winner], "Not a participant");
         require(tender.winner == address(0), "Winner already selected");
 

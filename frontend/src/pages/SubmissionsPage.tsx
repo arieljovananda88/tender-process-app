@@ -3,7 +3,7 @@
 import { useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, User, Building, FileText, File, FileImage, FileSpreadsheet } from "lucide-react"
+import { ArrowLeft, User, Building, FileText, File, FileImage, FileSpreadsheet, Loader2 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { formatDate, downloadEncryptedFile } from "@/lib/utils"
 import { useDocumentStore, useTenderManager } from "@/hooks/useContracts"
@@ -11,8 +11,9 @@ import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
 import { toast } from "react-toastify"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getTenderById, getUser, Tender } from "@/lib/api"
+import { getTenderById, getUser, selectWinner, Tender } from "@/lib/api"
 import { Document } from "@/lib/types"
+import { ethers } from "ethers"
 
 interface Participant {
   address: string;
@@ -43,22 +44,23 @@ const getFileIcon = (fileType: string) => {
 export default function ParticipantSubmissionsPage() {
   const params = useParams()
   const { address } = useAccount()
+  const [chooseWinner, setChooseWinner] = useState(false)
   const [participant, setParticipant] = useState<Participant | null>(null)
   const tenderId = params.id as string
   const participantAddress = params.address as string
   const { fetchParticipantDocuments } = useDocumentStore()
-  const { isPendingParticipant, addParticipant, isParticipant } = useTenderManager()
+  const { isPendingParticipant, addParticipant, isParticipant, getWinner } = useTenderManager()
   const [isPending, setIsPending] = useState(false)
   const [isRegistered, setIsRegistered] = useState(false)
+  const [isWinner, setIsWinner] = useState(false)
   const [tender, setTender] = useState<Tender | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[] }>({
     registrationDocuments: [],
     tenderDocuments: []
   });
-
-  console.log(new Date(Number(tender?.endDate) * 1000))
-  console.log(new Date())
+  const [isAddingParticipant, setIsAddingParticipant] = useState(false)
+  const [isChoosingWinner, setIsChoosingWinner] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -67,9 +69,11 @@ export default function ParticipantSubmissionsPage() {
         if (docs) {
           setDocuments(docs);
         }
-        console.log(tenderId, participantAddress)
         const pending = await isPendingParticipant(tenderId, participantAddress);
         const registered = await isParticipant(tenderId, participantAddress);
+        const winnerAddress = await getWinner(tenderId);
+        console.log(winnerAddress)
+        setIsWinner(winnerAddress.toLowerCase() === participantAddress.toLowerCase())
         const participant = await getUser(participantAddress);
         setParticipant({
           address: participantAddress,
@@ -95,6 +99,17 @@ export default function ParticipantSubmissionsPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (tender &&
+      isRegistered &&
+      address?.toLowerCase() === tender.owner?.toLowerCase() &&
+      !isWinner) {
+      setChooseWinner(true)
+    } else {
+      setChooseWinner(false)
+    }
+  }, [tender, isRegistered, address, isWinner])
+
 
   const handleDownload = async (doc: Document) => {
     await downloadEncryptedFile(address as string, doc, "buls2012")
@@ -106,19 +121,52 @@ export default function ParticipantSubmissionsPage() {
         toast.error("Please connect your wallet");
         return;
       }
+      setIsAddingParticipant(true);
       await addParticipant(tenderId, participantAddress, participant?.name || "", participant?.email || "");
       toast.success("Participant added successfully");
       setIsPending(false);
     } catch (error) {
       console.error("Error adding participant:", error);
       toast.error("Failed to add participant");
+    } finally {
+      setIsAddingParticipant(false);
     }
   };
 
   const handleChooseWinner = async () => {
-    // TODO: Implement choose winner logic (API call or contract interaction)
-    toast.success('Participant chosen as winner!');
-  };
+    try {
+      setIsChoosingWinner(true);
+      const provider = new ethers.providers.Web3Provider(window.ethereum)
+      const signer = provider.getSigner()
+      const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+
+      // Create message hash for deadline
+      const messageHash = ethers.utils.keccak256(
+        ethers.utils.solidityPack(
+          ["string", "uint256"],
+          [tenderId, deadline]
+        )
+      )
+
+      // Sign the hash
+      const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
+      const splitSig = ethers.utils.splitSignature(signature)
+
+      const response = await selectWinner(tenderId, participantAddress, "Participant chosen as winner", deadline, splitSig.v, splitSig.r, splitSig.s);
+      if (response.success) {
+        toast.success('Participant chosen as winner!');
+        setIsWinner(true);
+        setChooseWinner(false);
+      } else {
+        toast.error('Failed to choose participant as winner');
+      }
+    } catch (error) {
+      console.error("Error choosing winner:", error);
+      toast.error('Failed to choose participant as winner');
+    } finally {
+      setIsChoosingWinner(false);
+    }
+  };  
 
   const renderDocuments = (docs: Document[]) => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -170,19 +218,30 @@ export default function ParticipantSubmissionsPage() {
               <CardTitle className="text-xl">Participant's Submissions</CardTitle>
               <div className="flex gap-2">
                 {isPending && (
-                  <Button onClick={handleAddParticipant}>
-                    Add to Tender
+                  <Button onClick={handleAddParticipant} disabled={isAddingParticipant}>
+                    {isAddingParticipant ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      'Add to Tender'
+                    )}
                   </Button>
                 )}
                 {/* Choose as Winner button logic */}
-                {tender &&
-                  isRegistered &&
-                  address?.toLowerCase() === tender.owner?.toLowerCase() &&
-                  new Date() > new Date(tender.endDate) && (
-                    <Button onClick={handleChooseWinner}>
-                      Choose as Winner
-                    </Button>
-                  )}
+                {chooseWinner && (
+                  <Button onClick={handleChooseWinner} disabled={isChoosingWinner}>
+                    {isChoosingWinner ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Choosing...
+                      </>
+                    ) : (
+                      'Choose as Winner'
+                    )}
+                  </Button>
+                )}
               </div>
               {error && (
                 <div className="text-red-500">{error}</div>
@@ -220,6 +279,26 @@ export default function ParticipantSubmissionsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Loading Modal for Add Participant */}
+        {isAddingParticipant && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-lg font-medium">Adding participant...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Loading Modal for Choose Winner */}
+        {isChoosingWinner && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-lg font-medium">Choosing winner...</p>
+            </div>
+          </div>
+        )}
 
         {isPending ? (
           <div className="space-y-6">

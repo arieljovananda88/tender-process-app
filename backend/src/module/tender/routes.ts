@@ -9,7 +9,7 @@ const router = Router();
 
 router.post("/", createTender);
 router.post("/:tenderId/participants", addParticipant);
-router.post("/:tenderId/winner", selectWinner);
+router.post("/:tenderId/select-winner", selectWinner);
 
 export const tenderRouter = {
     router

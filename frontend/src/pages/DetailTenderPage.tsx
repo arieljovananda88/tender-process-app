@@ -18,10 +18,11 @@ export default function TenderDetailPage() {
   const [tender, setTender] = useState<Tender | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [winnerAddress, setWinnerAddress] = useState<string | null>(null)
   
   const { documents, fetchDocuments } = useDocumentStore();
 
-  const { isPending, isRegistered, checkRegistrationStatus, participants, pendingParticipants } = useTenderManager();
+  const { isPending, isRegistered, checkRegistrationStatus, participants, pendingParticipants, getWinner } = useTenderManager();
 
   // Filter out participants who are in both lists
   const filteredPendingParticipants = pendingParticipants.filter(
@@ -36,6 +37,8 @@ export default function TenderDetailPage() {
       try {
         const tender = await getTenderById(id as string)
         setTender(tender)
+        const winner = await getWinner(id as string)
+        setWinnerAddress(winner)
       } catch (err) {
         setError("Failed to fetch tender")
       } finally {
@@ -76,39 +79,37 @@ export default function TenderDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* Left sidebar - Participants (only for non-owners) */}
-        {!isOwner && (
-          <div className="xl:col-span-3">
-            <h2 className="text-lg font-semibold mb-4">Participants</h2>
-            <Tabs defaultValue="participants" className="w-full">
-              <TabsList className="w-full">
-                <TabsTrigger value="participants" className="flex-1">Participants</TabsTrigger>
-                <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
-              </TabsList>
-              <TabsContent value="participants" className="space-y-6 mt-6">
-                <ParticipantsList
-                  forPending={false}
-                  participants={participants}
-                  winnerId={"tes"}
-                  isOwner={isOwner}
-                  tenderId={id as string}
-                />
-              </TabsContent>
-              <TabsContent value="pending" className="space-y-6 mt-6">
-                <ParticipantsList
-                  forPending={true}
-                  participants={filteredPendingParticipants}
-                  winnerId={"tes"}
-                  isOwner={isOwner}
-                  tenderId={id as string}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
+        {/* Left sidebar - Participants (for all users) */}
+        <div className="xl:col-span-3">
+          <h2 className="text-lg font-semibold mb-4">Participants</h2>
+          <Tabs defaultValue="participants" className="w-full">
+            <TabsList className="w-full">
+              <TabsTrigger value="participants" className="flex-1">Participants</TabsTrigger>
+              <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
+            </TabsList>
+            <TabsContent value="participants" className="space-y-6 mt-6">
+              <ParticipantsList
+                forPending={false}
+                participants={participants}
+                winnerId={winnerAddress}
+                isOwner={isOwner}
+                tenderId={id as string}
+              />
+            </TabsContent>
+            <TabsContent value="pending" className="space-y-6 mt-6">
+              <ParticipantsList
+                forPending={true}
+                participants={filteredPendingParticipants}
+                winnerId={winnerAddress}
+                isOwner={isOwner}
+                tenderId={id as string}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
 
         {/* Main content - center */}
-        <div className={`space-y-6 ${isOwner ? 'xl:col-span-12' : 'xl:col-span-6'}`}>
+        <div className="xl:col-span-6 space-y-6">
           <div className="flex justify-between items-start">
             <h1 className="text-2xl font-bold">{tender.name}</h1>
             <Badge className={isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
@@ -154,32 +155,6 @@ export default function TenderDetailPage() {
               canUpload={isOwner}
             />
           </div>
-
-          {/* Participants (only for owners) */}
-          {isOwner && (
-            <>
-            <div className="border-t pt-4">
-              <h2 className="text-lg font-semibold mb-2">Participants</h2>
-              <ParticipantsList
-                forPending={false}
-                participants={participants}
-                winnerId={"tes"}
-                isOwner={isOwner}
-                tenderId={id as string}
-              />
-            </div>
-            <div className="border-t pt-4">
-            <h2 className="text-lg font-semibold mb-2">Pending Participants</h2>
-            <ParticipantsList
-              forPending={true}
-              participants={filteredPendingParticipants}
-              winnerId={"tes"}
-              isOwner={isOwner}
-              tenderId={id as string}
-            />
-          </div>
-          </>
-          )}
 
           {/* Documents Section - Changes based on registration status */}
           {!isOwner && (
