@@ -12,14 +12,13 @@ interface Participant {
 }
 
 interface ParticipantsListProps {
-  isOwner: boolean
   forPending: boolean
   participants: Participant[]
   winnerId: string | null
   tenderId: string
 }
 
-export function ParticipantsList({ isOwner, forPending = false, participants, winnerId, tenderId }: ParticipantsListProps) {
+export function ParticipantsList({ forPending = false, participants, winnerId, tenderId }: ParticipantsListProps) {
   const navigate = useNavigate()
 
   const handleViewSubmissions = (participantAddress: string) => {
@@ -55,18 +54,16 @@ export function ParticipantsList({ isOwner, forPending = false, participants, wi
                     </div>
                   </div>
 
-                  {isOwner && (
-                    <div className="flex justify-end">
-                      <Button 
-                        variant="default" 
-                        size="sm" 
-                        className="h-8 bg-blue-600 hover:bg-blue-700"
-                        onClick={() => handleViewSubmissions(participant.address)}
-                      >
-                        View Submissions
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex justify-end">
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="h-8 bg-blue-600 hover:bg-blue-700"
+                      onClick={() => handleViewSubmissions(participant.address)}
+                    >
+                      View Submissions
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -25,6 +25,12 @@ export interface UserResponse {
   name: string;
   email: string;
 }
+
+export interface RequestAccessResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface PaginatedResponse<T> {
   success: boolean;
   tenders: T[];
@@ -369,7 +375,7 @@ export async function uploadDocument(params: UploadDocumentParams): Promise<Uplo
   formData.append("signer", params.signer);
 
   const response = await axios.post<UploadDocumentResponse>(
-    `${API_BASE_URL}/upload-document`,
+    `${API_BASE_URL}/document`,
     formData,
     {
       headers: {
@@ -393,7 +399,7 @@ export async function uploadInfoDocument(params: UploadInfoDocumentParams): Prom
   formData.append("signer", params.signer);
 
   const response = await axios.post<UploadDocumentResponse>(
-    `${API_BASE_URL}/upload-document/info`,
+    `${API_BASE_URL}/document/info`,
     formData,
     {
       headers: {
@@ -415,6 +421,19 @@ export async function selectWinner(tenderId: string, winner: string, reason: str
       r,
       s
     },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function requestAccess(receiver: string, cid: string, fileName: string, deadline: number, v: number, r: string, s: string): Promise<RequestAccessResponse> {
+  const response = await axios.post<RequestAccessResponse>(
+    `${API_BASE_URL}/document/request-access`,
+    { receiver, cid, fileName, deadline, v, r, s },
     {
       headers: {
         'Content-Type': 'application/json',

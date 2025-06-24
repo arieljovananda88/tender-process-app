@@ -11,9 +11,17 @@ import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
 import { toast } from "react-toastify"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getTenderById, getUser, selectWinner, Tender } from "@/lib/api"
+import { getTenderById, getUser, requestAccess, selectWinner, Tender } from "@/lib/api"
 import { Document } from "@/lib/types"
 import { ethers } from "ethers"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 interface Participant {
   address: string;
@@ -61,6 +69,8 @@ export default function ParticipantSubmissionsPage() {
   });
   const [isAddingParticipant, setIsAddingParticipant] = useState(false)
   const [isChoosingWinner, setIsChoosingWinner] = useState(false)
+  const [showAccessModal, setShowAccessModal] = useState(false)
+  const [failedDocument, setFailedDocument] = useState<Document | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -72,7 +82,6 @@ export default function ParticipantSubmissionsPage() {
         const pending = await isPendingParticipant(tenderId, participantAddress);
         const registered = await isParticipant(tenderId, participantAddress);
         const winnerAddress = await getWinner(tenderId);
-        console.log(winnerAddress)
         setIsWinner(winnerAddress.toLowerCase() === participantAddress.toLowerCase())
         const participant = await getUser(participantAddress);
         setParticipant({
@@ -112,7 +121,35 @@ export default function ParticipantSubmissionsPage() {
 
 
   const handleDownload = async (doc: Document) => {
-    await downloadEncryptedFile(address as string, doc, "buls2012")
+    const success = await downloadEncryptedFile(address as string, doc, "buls2012")
+    if (!success) {
+      setFailedDocument(doc)
+      setShowAccessModal(true)
+    }
+  };
+
+  const handleRequestAccess = async (doc: Document) => {
+    const provider = new ethers.providers.Web3Provider(window.ethereum)
+    const signer = provider.getSigner();
+    const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+    const messageHash = ethers.utils.keccak256(
+      ethers.utils.solidityPack(
+        ["uint256"],
+        [deadline]
+      )
+    )
+    const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
+    const splitSig = ethers.utils.splitSignature(signature)
+    
+    const response = await requestAccess(participantAddress, doc.documentCid, doc.documentName, deadline, splitSig.v, splitSig.r, splitSig.s)
+
+    if (response.success) {
+      toast.success('Access request sent!')
+    } else {
+      toast.error('Failed to send access request')
+    }
+    setShowAccessModal(false)
+    setFailedDocument(null)
   };
 
   const handleAddParticipant = async () => {
@@ -320,6 +357,36 @@ export default function ParticipantSubmissionsPage() {
           </Tabs>
         )}
       </div>
+
+      {/* Request Access Modal */}
+      <Dialog open={showAccessModal} onOpenChange={setShowAccessModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Access Required</DialogTitle>
+            <DialogDescription>
+              You don't have permission to download this document. Would you like to request access from the owner?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {failedDocument && (
+              <div className="bg-gray-50 p-3 rounded-md">
+                <p className="text-sm font-medium">Document: {failedDocument.documentName}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Uploaded on {formatDate(failedDocument.submissionDate)}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAccessModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => handleRequestAccess(failedDocument as Document)}>
+              Request Access
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

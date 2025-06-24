@@ -279,6 +279,10 @@ export function getMimeType(format: string): string {
 export async function downloadEncryptedFile(address: string, doc: Document, passphrase: string) {
   try {
     const {encryptedKey, iv} = await getKey(address as string, doc.documentCid)
+    if (!encryptedKey) {
+      toast.error("No encrypted key found, you don't have access to this document");
+      return false;
+    }
     const encryptedSymmetricKey = encryptedKey
 
     const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;

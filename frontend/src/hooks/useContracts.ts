@@ -179,7 +179,7 @@ export function useDocumentStore() {
       const documentStoreAddress = import.meta.env.VITE_DOCUMENT_STORE_CONTRACT_ADDRESS;
       const contract = new ethers.Contract(documentStoreAddress, DocumentStoreArtifact.abi, signer);
 
-      const docs = await contract.getDocumentsOfTenderAsOwner(tenderId, participantAddress);
+      const docs = await contract.getDocumentsOfTender(tenderId, participantAddress);
       const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
       const tenderDocs = docs.filter((doc: Document) => doc.documentType !== "Registration");
       const infoDocs = await contract.getTenderInfoDocuments(tenderId);

@@ -12,7 +12,7 @@ import { tenderRouter } from "../../module/tender/routes";
 
 app.use(express.json())
 app.use(cors())
-app.use('/upload-document', uploadDocumentRouter.router)
+app.use('/document', uploadDocumentRouter.router)
 app.use('/wallet', walletRouter.router)
 app.use('/auth', authRouter.router)
 app.use('/tender', tenderRouter.router)

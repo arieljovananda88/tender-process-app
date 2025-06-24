@@ -135,10 +135,7 @@ export function DocumentList({
           signer: address,
         });
       } else {
-        // Send all fields for other document types
-        console.log(typeOfFile)
         const user = JSON.parse(localStorage.getItem('user') || '{}')
-        console.log(user)
         response = await uploadDocument({
           document: selectedFile,
           documentName: fileName,

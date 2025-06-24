@@ -3,6 +3,7 @@ const { ethers } = require("ethers");
 import tenderManagerAbi from '../../../artifacts/contracts/TenderManager.sol/TenderManager.json'
 import documentStoreAbi from '../../../artifacts/contracts/DocumentStore.sol/DocumentStore.json'
 import publicKeyAbi from '../../../artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json'
+import keyManagerAbi from '../../../artifacts/contracts/KeyManager.sol/KeyManager.json'
 
 async function main() {
   const  provider = new ethers.providers.JsonRpcProvider(process.env.ARBITRUM_SEPOLIA_RPC_URL);
@@ -38,16 +39,24 @@ async function main() {
   //   signer
   // );
 
-  const tenderId = ethers.utils.formatBytes32String("1");
+  const keyManager = "0x8A1394421770065b5AB3a528dd029f0989A938d1"
 
-  console.log("📤 Calling createTender...");
-  const tx = await tenderManagerContract.createTender(tenderId);
-  await tx.wait();
-  console.log("✅ Tender created.");
+  const keyManagerContract = new ethers.Contract(
+    keyManager,
+    keyManagerAbi.abi,
+    signer
+  );
 
-  console.log("🔍 Calling getOwner...");
-  const owner = await tenderManagerContract.getOwner(tenderId);
-  console.log("📌 Owner of tender '2':", owner);
+  // const tenderId = ethers.utils.formatBytes32String("1");
+
+  // console.log("📤 Calling createTender...");
+  // const tx = await tenderManagerContract.createTender(tenderId);
+  // await tx.wait();
+  // console.log("✅ Tender created.");
+
+  // console.log("🔍 Calling getOwner...");
+  // const owner = await tenderManagerContract.getOwner(tenderId);
+  // console.log("📌 Owner of tender '2':", owner);
 
   // console.log("🔍 Calling getPublicKey...");
   // const publicKey = await publicKeyContract.getPublicKey("0x48dbd83Dc991955D21b0B741b66190b0Bc7bbA0f");

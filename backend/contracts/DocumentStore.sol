@@ -10,6 +10,7 @@ interface ITenderManager {
 
 contract DocumentStore {
     struct Document {
+        address documentOwner;
         string documentCid;
         string documentName;
         string documentType;
@@ -32,6 +33,8 @@ contract DocumentStore {
     }
 
     mapping(string => mapping(address => Document[])) public tenderDocuments;
+
+    mapping(string => address) public documentOwner;
 
     mapping(string => Document[]) public tenderInfoDocuments;
 
@@ -64,6 +67,7 @@ contract DocumentStore {
         );
 
         Document memory newDocument = Document({
+            documentOwner: signer,
             documentCid: input.documentCid,
             documentName: input.documentName,
             documentType: "info",
@@ -73,10 +77,10 @@ contract DocumentStore {
 
         tenderInfoDocuments[input.tenderId].push(newDocument);
 
+        documentOwner[input.documentCid] = signer;
+
         emit DocumentUploaded(input.tenderId, signer, input.documentCid, input.documentName, block.timestamp);
     }
-
-
 
     function uploadDocumentWithSignature(UploadInput memory input) public {
         bytes32 messageHash = keccak256(abi.encodePacked(input.tenderId, input.documentName, input.deadline));
@@ -95,6 +99,7 @@ contract DocumentStore {
         }
 
         Document memory newDocument = Document({
+            documentOwner: signer,
             documentCid: input.documentCid,
             documentName: input.documentName,
             documentType: input.documentType,
@@ -103,6 +108,8 @@ contract DocumentStore {
         });
 
         tenderDocuments[input.tenderId][signer].push(newDocument);
+
+        documentOwner[input.documentCid] = signer;
 
         if (!tenderManager.isParticipant(input.tenderId, signer) &&
             !tenderManager.isPendingParticipant(input.tenderId, signer)) {
@@ -121,19 +128,16 @@ contract DocumentStore {
         return (document.documentCid, document.documentName, document.submissionDate);
     }
 
-    function getDocumentOfUserAsOwner(string memory tenderId, address user, uint256 index) public view returns (string memory, string memory, uint256) {
-        require(tenderManager.getOwner(tenderId) == msg.sender, "Only tender owner can view this");
-        Document memory document = tenderDocuments[tenderId][user][index];
-        return (document.documentCid, document.documentName, document.submissionDate);
-    }
-
-    function getDocumentsOfTenderAsOwner(string memory tenderId, address user) public view returns (Document[] memory) {
-        require(tenderManager.getOwner(tenderId) == msg.sender, "Only tender owner can view this");
+    function getDocumentsOfTender(string memory tenderId, address user) public view returns (Document[] memory) {
         return tenderDocuments[tenderId][user];
     }
 
     function getTenderInfoDocuments(string memory tenderId) public view returns (Document[] memory) {
         return tenderInfoDocuments[tenderId];
     }
+
+    function getDocumentOwner(string memory documentCid) public view returns (address) {
+        return documentOwner[documentCid];
+    }   
 
 }

@@ -92,7 +92,6 @@ export default function TenderDetailPage() {
                 forPending={false}
                 participants={participants}
                 winnerId={winnerAddress}
-                isOwner={isOwner}
                 tenderId={id as string}
               />
             </TabsContent>
@@ -101,7 +100,6 @@ export default function TenderDetailPage() {
                 forPending={true}
                 participants={filteredPendingParticipants}
                 winnerId={winnerAddress}
-                isOwner={isOwner}
                 tenderId={id as string}
               />
             </TabsContent>
