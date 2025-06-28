@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, User, Building, FileText, File, FileImage, FileSpreadsheet, Loader2 } from "lucide-react"
 import { Link } from "react-router-dom"
-import { formatDate, downloadEncryptedFile } from "@/lib/utils"
+import { downloadEncryptedFileWithDialog, formatDate } from "@/lib/utils"
 import { useDocumentStore, useTenderManager } from "@/hooks/useContracts"
 import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
@@ -121,17 +121,18 @@ export default function ParticipantSubmissionsPage() {
 
 
   const handleDownload = async (doc: Document) => {
-    const success = await downloadEncryptedFile(address as string, doc, "buls2012")
-    if (!success) {
-      setFailedDocument(doc)
-      setShowAccessModal(true)
-    }
+    await downloadEncryptedFileWithDialog(address as string, doc)
+    // const success = await downloadEncryptedFile(address as string, doc, "buls2012")
+    // if (!success) {
+    //   setFailedDocument(doc)
+    //   setShowAccessModal(true)
+    // }
   };
 
   const handleRequestAccess = async (doc: Document) => {
     const provider = new ethers.providers.Web3Provider(window.ethereum)
     const signer = provider.getSigner();
-    const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+    const deadline = Math.floor(Date.now() / 1000) + 3600;
     const messageHash = ethers.utils.keccak256(
       ethers.utils.solidityPack(
         ["uint256"],
@@ -141,7 +142,7 @@ export default function ParticipantSubmissionsPage() {
     const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
     const splitSig = ethers.utils.splitSignature(signature)
     
-    const response = await requestAccess(participantAddress, doc.documentCid, doc.documentName, deadline, splitSig.v, splitSig.r, splitSig.s)
+    const response = await requestAccess(participantAddress, tenderId, doc.documentCid, doc.documentName, doc.documentFormat, deadline, splitSig.v, splitSig.r, splitSig.s)
 
     if (response.success) {
       toast.success('Access request sent!')

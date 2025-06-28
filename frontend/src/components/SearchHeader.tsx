@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button"
 interface SearchHeaderProps {
   title: string
   onSearch?: (query: string) => void
+  placeholder?: string
 }
 
-export function SearchHeader({ title, onSearch }: SearchHeaderProps) {
+export function SearchHeader({ title, onSearch, placeholder = "tenders" }: SearchHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("")
 
   const handleSearch = () => {
@@ -27,7 +28,7 @@ export function SearchHeader({ title, onSearch }: SearchHeaderProps) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search tenders..."
+            placeholder={`Search ${placeholder}...`}
             className="pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}

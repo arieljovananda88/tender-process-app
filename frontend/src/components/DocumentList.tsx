@@ -3,7 +3,7 @@ import { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FileText, Download, Upload, X, Plus, File, FileImage, Loader2 } from "lucide-react"
-import { downloadFile, downloadEncryptedFile, formatDate } from "@/lib/utils"
+import { downloadFile, downloadEncryptedFileWithDialog, formatDate } from "@/lib/utils"
 import { useAccount } from "wagmi"
 import { useParams } from "react-router-dom"
 import { toast } from "react-toastify"
@@ -77,7 +77,7 @@ export function DocumentList({
     if (doc.documentType === "info") {
       await downloadFile(doc);
     } else {
-      await downloadEncryptedFile(address as string, doc, "buls2012");
+      await downloadEncryptedFileWithDialog(address as string, doc);
     }
   };
   

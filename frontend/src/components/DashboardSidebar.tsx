@@ -155,6 +155,15 @@ export function DashboardSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/access-requests")}>
+              <Link to="/access-requests">
+                <ClipboardList className="size-4" />
+                <span>Access Requests</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="absolute bottom-0 left-0 right-0 p-4 h-auto">

@@ -111,7 +111,18 @@ export interface UploadInfoDocumentParams {
   r: string;
   s: string;
   signer: string;
-} 
+}
+
+export interface AccessRequest {
+  id: string;
+  requester: string;
+  receiver: string;
+  cid: string;
+  documentName: string;
+  documentFormat: string;
+  tenderId: string;
+  blockTimestamp: string;
+}
 
 export async function getTenders(search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
   const response = await axios.post(
@@ -430,10 +441,10 @@ export async function selectWinner(tenderId: string, winner: string, reason: str
   return response.data;
 }
 
-export async function requestAccess(receiver: string, cid: string, fileName: string, deadline: number, v: number, r: string, s: string): Promise<RequestAccessResponse> {
+export async function grantAccess(receiver: string, tenderId: string, cid: string, documentName: string, encryptedKey: string, iv: string, deadline: number, v: number, r: string, s: string): Promise<RequestAccessResponse> {
   const response = await axios.post<RequestAccessResponse>(
-    `${API_BASE_URL}/document/request-access`,
-    { receiver, cid, fileName, deadline, v, r, s },
+    `${API_BASE_URL}/document/grant-access`,
+    { receiver, tenderId, cid, documentName, encryptedKey, iv, deadline, v, r, s },
     {
       headers: {
         'Content-Type': 'application/json',
@@ -441,6 +452,91 @@ export async function requestAccess(receiver: string, cid: string, fileName: str
     }
   );
   return response.data;
+}
+
+export async function requestAccess(receiver: string, tenderId: string, cid: string, documentName: string, documentFormat: string, deadline: number, v: number, r: string, s: string): Promise<RequestAccessResponse> {
+  const response = await axios.post<RequestAccessResponse>(
+    `${API_BASE_URL}/document/request-access`,
+    { receiver, tenderId, cid, documentName, documentFormat, deadline, v, r, s },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function getAccessRequests(search: string = "", page: number = 0, pageSize: number = 10, requester: string = ""): Promise<AccessRequest[]> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_KEY_MANAGER_API,
+    {
+      query: createAccessRequestsQuery(search, page, pageSize, requester),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.requestAccesses;
+}
+
+export async function getAccessRequestsLength(search: string = "", requester: string = ""): Promise<number> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_KEY_MANAGER_API,
+    {
+      query: createAccessRequestsLengthQuery(search, requester),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.requestAccesses.length;
+}
+
+export async function getAccessRequestsToMe(search: string = "", page: number = 0, pageSize: number = 10, receiver: string = ""): Promise<AccessRequest[]> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_KEY_MANAGER_API,
+    {
+      query: createAccessRequestsToMeQuery(search, page, pageSize, receiver),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_KEY_MANAGER_API}`
+      }
+    }
+  )
+  return response.data.data.requestAccesses;
+}
+
+export async function getAccessRequestsToMeLength(search: string = "", receiver: string = ""): Promise<number> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_KEY_MANAGER_API,
+    {
+      query: createAccessRequestsToMeLengthQuery(search, receiver),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_KEY_MANAGER_API}`
+      }
+    }
+  )
+  return response.data.data.requestAccesses.length;
 }
 
 const createTenderQuery = (search: string = "", page: number = 0, pageSize: number = 10) => {
@@ -595,3 +691,103 @@ const createKeyQuery = (address: string, cid: string) => {
     }
   `
 }
+
+const createAccessRequestsQuery = (search: string = "", page: number = 0, pageSize: number = 10, requester: string = "") => {
+  let condition = ""
+  if (requester) {
+    condition = `where: {requester: "${requester}" }`
+  }
+  if (search) {
+    condition = `where: {requester: "${requester}", documentName_contains: "${search}" }`
+  }
+  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+  return `
+    query Subgraphs {
+      requestAccesses(${pagination}, ${condition}) {
+        id
+        requester
+        receiver
+        cid
+        documentName
+        documentFormat
+        tenderId
+        blockTimestamp
+      }
+    }
+  `
+}
+
+const createAccessRequestsLengthQuery = (search: string = "", requester: string = "") => {
+  let condition = ""
+  if (requester) {
+    condition = `where: {requester: "${requester}" }`
+  }
+  if (search) {
+    condition = `where: {requester: "${requester}", documentName_contains: "${search}" }`
+  }
+
+  return `
+    query Subgraphs {
+      requestAccesses(${condition}) {
+        id
+        requester
+        receiver
+        cid
+        documentName
+        documentFormat
+        tenderId
+        blockTimestamp
+      }
+    }
+  `;
+};
+
+const createAccessRequestsToMeQuery = (search: string = "", page: number = 0, pageSize: number = 10, receiver: string = "") => {
+  let condition = ""
+  if (receiver) {
+    condition = `where: {receiver: "${receiver}" }`
+  }
+  if (search) {
+    condition = `where: {receiver: "${receiver}", documentName_contains: "${search}" }`
+  }
+  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+  return `
+    query Subgraphs {
+      requestAccesses(${pagination}, ${condition}) {
+        id
+        requester
+        receiver
+        cid
+        documentName
+        documentFormat
+        tenderId
+        blockTimestamp
+      }
+    }
+  `
+}
+
+const createAccessRequestsToMeLengthQuery = (search: string = "", receiver: string = "") => {
+  let condition = ""
+  if (receiver) {
+    condition = `where: {receiver: "${receiver}" }`
+  }
+  if (search) {
+    condition = `where: {receiver: "${receiver}", documentName_contains: "${search}" }`
+  }
+
+  return `
+    query Subgraphs {
+      requestAccesses(${condition}) {
+        id
+        requester
+        receiver
+        cid
+        documentName
+        documentFormat
+        tenderId
+        blockTimestamp
+      }
+    }
+  `;
+};

@@ -22,6 +22,7 @@ contract TenderManager {
     event ParticipantAdded(string tenderId, address participant, string name, string email, uint256 timestamp);
     event PendingParticipantAdded(string tenderId, address participant, string name, string email, uint256 timestamp);
     event WinnerSelected(string tenderId, address winner, string reason, uint256 timestamp);
+     event JoinedTender( address participant, string tenderId, address owner, string name, string description, uint256 startDate, uint256 endDate);
 
     function createTender(
         string memory tenderId,
@@ -100,7 +101,10 @@ contract TenderManager {
             }
         }
 
+        tender = tenders[tenderId];
+
         emit ParticipantAdded(tenderId, participant, name, email, block.timestamp);
+        emit JoinedTender(participant, tenderId, tender.owner, tender.name, tender.description, tender.startDate, tender.endDate);
     }
 
     function selectWinner(string memory tenderId, address winner, string memory reason, uint8 v, bytes32 r, bytes32 s, uint256 deadline) external {

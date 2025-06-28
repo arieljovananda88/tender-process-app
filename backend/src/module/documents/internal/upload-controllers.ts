@@ -122,8 +122,6 @@ async function uploadDocument(req: any, res: any) {
       const ownerEncryptedSymmetricKey = ownerEncryptedSymmetricBuffer.toString('base64');
       const participantEncryptedSymmetricKey = participantEncryptedSymmetricBuffer.toString('base64');
 
-      const ownerDocument = await documentStore.getDocumentOwner(cid);
-
       const keyManager = getKeyManagerContractInstance();
       const emitKeyOwnerTx = await keyManager.emitKey({
         receiver: owner,
@@ -174,20 +172,59 @@ async function uploadDocument(req: any, res: any) {
 
 async function requestAccess(req: any, res: any) {
   try {
-    const { receiver, cid, fileName, v, r, s, deadline } = req.body;
+    const { receiver, cid, tenderId, documentName, documentFormat, v, r, s, deadline } = req.body;
 
-    if (!receiver || !cid || !fileName || !v || !r || !s || !deadline) {
+    if (!receiver || !cid || !tenderId || !documentName || !documentFormat || !v || !r || !s || !deadline) {
       return res.status(400).json({ error: "Missing required fields" });
     }
   
     const keyManager = getKeyManagerContractInstance();
-    const requestAccessTx = await keyManager.requestAccess(receiver, cid, fileName, v, r, s, deadline);
+    const requestAccessTx = await keyManager.requestAccess({
+      receiver,
+      tenderId,
+      cid,
+      documentName,
+      documentFormat,
+      v,
+      r, s, deadline});
     await requestAccessTx.wait();
   
     return res.status(200).json({
       success: true,
       message: "Access requested successfully",
       transactionHash: requestAccessTx.hash
+    });
+  } catch (error: any) {
+    console.error("Request access error:", error);
+    res.status(500).json({ error: "Internal server error", details: error.message });
+  }
+}
+
+async function grantAccess(req: any, res: any) {
+  try {
+    const { receiver, cid, tenderId, documentName, encryptedKey, iv, v, r, s, deadline } = req.body;
+
+    if (!receiver || !cid || !tenderId || !documentName || !encryptedKey || !iv || !v || !r || !s || !deadline) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+  
+    const keyManager = getKeyManagerContractInstance();
+    const emitKeyTx = await keyManager.emitKey({
+      receiver: receiver,
+      encryptedKey: encryptedKey,
+      iv,
+      cid,
+      tenderId,
+      documentName,
+      v,
+      r,
+      s, deadline});
+    await emitKeyTx.wait();
+  
+    return res.status(200).json({
+      success: true,
+      message: "Key granted successfully",
+      transactionHash: emitKeyTx.hash
     });
   } catch (error: any) {
     console.error("Request access error:", error);
@@ -254,5 +291,6 @@ async function uploadInfoDocument(req: any, res: any) {
 export const uploadDocumentController = {
   uploadDocument,
   uploadInfoDocument,
-  requestAccess
+  requestAccess,
+  grantAccess
 };

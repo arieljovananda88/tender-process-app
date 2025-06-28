@@ -32,7 +32,7 @@ const AuthPage: React.FC = () => {
       setAuthStatus(res.success ? "Authenticated!" : "Authentication Failed");
 
       if (res.success) {
-        // add name and address of user to local storage
+        console.log("Authenticated!");
         const user = await getUser(address);
         localStorage.setItem("user", JSON.stringify({ address, name: user.name, email: user.email }));
         navigate("/tenders/search");

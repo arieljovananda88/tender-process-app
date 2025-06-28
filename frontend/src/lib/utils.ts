@@ -118,15 +118,9 @@ export async function tryDecryptAndParseJSON(encryptedData: Uint8Array, passphra
   try {
     let parsed: any;
     const decrypted = await decryptPrivateKeyWithPassphrase(encryptedData, passphrase);
-
-    console.log(decrypted)
   
-    parsed = JSON.parse(decrypted);
+    parsed = JSON.parse(decrypted);;
 
-    console.log('Parsed object:', parsed);
-    console.log('Keys in parsed object:', Object.keys(parsed));
-
-    // Optionally, check if it's a valid JWK structure
     if (!parsed.kty || !parsed.n || !parsed.e) {
       throw new Error("Decrypted content is not a valid JWK key");
     }
@@ -275,6 +269,22 @@ export function getMimeType(format: string): string {
   return MIME_TYPE_MAP[format.toLowerCase()] || "application/octet-stream";
 }
 
+export async function decryptSymmetricKey(address: string, passphrase: string, encryptedKey: string) {
+  const encryptedSymmetricKey = encryptedKey
+
+  const encryptedKeyFromDB = await getKeyFromDB(address as string)
+
+  const encKeyUint8Array = base64ToUint8Array(encryptedKeyFromDB as string);
+
+  const decryptedResult = await tryDecryptAndParseJSON(encKeyUint8Array, passphrase);
+
+  const privateKey = await importPrivateKeyFromJWK(decryptedResult.parsed);
+  
+  const symmetricKey = await decryptData(privateKey, base64ToUint8Array(encryptedSymmetricKey));
+
+  return symmetricKey;
+}
+
 
 export async function downloadEncryptedFile(address: string, doc: Document, passphrase: string) {
   try {
@@ -283,21 +293,12 @@ export async function downloadEncryptedFile(address: string, doc: Document, pass
       toast.error("No encrypted key found, you don't have access to this document");
       return false;
     }
-    const encryptedSymmetricKey = encryptedKey
+
+   const symmetricKey = await decryptSymmetricKey(address, passphrase, encryptedKey)
 
     const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
     const response = await fetch(ipfsUrl);
     if (!response.ok) throw new Error("Failed to fetch file from IPFS");
-
-    const encryptedKeyFromDB = await getKeyFromDB(address as string)
-
-    const encKeyUint8Array = base64ToUint8Array(encryptedKeyFromDB as string);
-
-    const decryptedResult = await tryDecryptAndParseJSON(encKeyUint8Array, passphrase);
-
-    const privateKey = await importPrivateKeyFromJWK(decryptedResult.parsed);
-    
-    const symmetricKey = await decryptData(privateKey, base64ToUint8Array(encryptedSymmetricKey));
 
     const encryptedArrayBuffer = await response.arrayBuffer();
     const encryptedWordArray = enc.Hex.parse(Buffer.from(encryptedArrayBuffer).toString("hex"));
@@ -344,5 +345,50 @@ export async function downloadFile(doc: Document) {
   } catch (error) {
     console.error("Download error:", error);
     toast.error("Failed to download document.");
+  }
+}
+
+export async function encryptSymmetricKeyWithPublicKey(symmetricKey: string, publicKeyJwk: any) {
+  // Import the public key from JWK format
+  const publicKey = await window.crypto.subtle.importKey(
+    "jwk",
+    publicKeyJwk,
+    {
+      name: "RSA-OAEP",
+      hash: "SHA-256",
+    },
+    false,
+    ["encrypt"]
+  );
+
+  // Encrypt the symmetric key with the public key
+  const encrypted = await window.crypto.subtle.encrypt(
+    {
+      name: "RSA-OAEP",
+    },
+    publicKey,
+    new TextEncoder().encode(symmetricKey)
+  );
+
+  // Convert to base64 for storage/transmission
+  return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+}
+
+export function showPassphraseDialog(): Promise<string | null> {
+  return new Promise((resolve) => {
+    // Create a simple dialog using browser's built-in prompt
+    const passphrase = prompt("Enter your private key passphrase:")
+    if (passphrase === null) {
+      resolve(null) // User cancelled
+    } else {
+      resolve(passphrase.trim() || null)
+    }
+  })
+}
+
+export async function downloadEncryptedFileWithDialog(address: string, doc: Document) {
+  const passphrase = await showPassphraseDialog()
+  if (passphrase) {
+    await downloadEncryptedFile(address, doc, passphrase)
   }
 }

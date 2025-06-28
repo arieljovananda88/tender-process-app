@@ -26,7 +26,9 @@ contract KeyManager {
         address requester,
         address receiver,
         string cid,
-        string fileName
+        string documentName,
+        string documentFormat,
+        string tenderId
     );
 
     struct EmitKeyInput {
@@ -36,6 +38,18 @@ contract KeyManager {
         string cid;
         string tenderId;
         string documentName;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        uint256 deadline;
+    }
+
+    struct RequestAccessInput {
+        address receiver;
+        string tenderId;
+        string cid;
+        string documentName;
+        string documentFormat;
         uint8 v;
         bytes32 r;
         bytes32 s;
@@ -60,16 +74,16 @@ contract KeyManager {
         emit EmitKey(input.receiver, senderAddress, input.encryptedKey, input.iv, input.cid);
     }
 
-    function requestAccess(address receiver, string memory cid, string memory fileName, uint8 v, bytes32 r, bytes32 s, uint256 deadline) external {
-        bytes32 messageHash = keccak256(abi.encodePacked(deadline));
+    function requestAccess(RequestAccessInput memory input) external {
+        bytes32 messageHash = keccak256(abi.encodePacked(input.deadline));
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
-        address requester = ecrecover(ethSignedMessageHash, v, r, s);
+        address requester = ecrecover(ethSignedMessageHash, input.v, input.r, input.s);
 
-        require(accessRequests[cid][receiver] == false, "Access already requested");
+        require(accessRequests[input.cid][input.receiver] == false, "Access already requested");
 
-        accessRequests[cid][receiver] = true;
+        accessRequests[input.cid][input.receiver] = true;
 
-        emit RequestAccess(requester, receiver, cid, fileName);
+        emit RequestAccess(requester, input.receiver, input.cid, input.documentName, input.documentFormat, input.tenderId);
     }
 
     function getEncryptedKey(string memory cid, address receiver) external view returns (string memory) {
