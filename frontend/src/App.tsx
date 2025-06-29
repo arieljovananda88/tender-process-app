@@ -31,14 +31,12 @@ const App: React.FC = () => {
           <Route path="/register" element={<RegisterPage />} />
           
           <Route element={<DashboardLayout />}>
-            {/* <Route path="/dashboard" element={<DashboardPage />} /> */}
-            <Route path="/tenders/search" element={<SearchTenderPage />} />
-            <Route path="/tenders/registered" element={<div>Registered Tenders Page</div>} />
+            <Route path="/tenders/search" element={<SearchTenderPage forRegistered={false} />} />
+            <Route path="/tenders/registered" element={<SearchTenderPage forRegistered={true} />} />
             <Route path="/my-tenders" element={<MyTenders />} />
             <Route path="/access-requests" element={<AccessRequestsPage />} />
             <Route path="/tenders/:id" element={<TenderDetailPage />} />
             <Route path="/tenders/:id/submissions/:address" element={<SubmissionsPage />} />
-            {/* <Route path="/settings" element={SearchTenderPage} /> */}
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

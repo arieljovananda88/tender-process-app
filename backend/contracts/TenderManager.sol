@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 contract TenderManager {
     struct Tender {
         address owner;
+        string name;
+        string description;
         uint256 startDate;
         uint256 endDate;
         address winner;
@@ -43,6 +45,8 @@ contract TenderManager {
 
         tenders[tenderId] = Tender({
             owner: ownerAddress,
+            name: name,
+            description: description,
             startDate: startDate,
             endDate: endDate,
             winner: address(0)
@@ -62,7 +66,10 @@ contract TenderManager {
         pendingParticipants[tenderId][participant] = true;
         pendingTenderParticipants[tenderId].push(participant);
 
+        Tender storage tender = tenders[tenderId];
+
         emit PendingParticipantAdded(tenderId, participant, name, email, block.timestamp);
+        emit JoinedTender(participant, tenderId, tender.owner, tender.name, tender.description, tender.startDate, tender.endDate);
     }
 
     function addParticipant(
@@ -101,10 +108,7 @@ contract TenderManager {
             }
         }
 
-        tender = tenders[tenderId];
-
         emit ParticipantAdded(tenderId, participant, name, email, block.timestamp);
-        emit JoinedTender(participant, tenderId, tender.owner, tender.name, tender.description, tender.startDate, tender.endDate);
     }
 
     function selectWinner(string memory tenderId, address winner, string memory reason, uint8 v, bytes32 r, bytes32 s, uint256 deadline) external {

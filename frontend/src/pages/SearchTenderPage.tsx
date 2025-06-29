@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { SearchHeader } from "@/components/SearchHeader"
 import { TenderCard } from "@/components/TenderCard"
-import { getTenders, getTendersLength, type Tender } from "@/lib/api"
+import { getRegisteredTendersLength, getRegisteredTenders, getTenders, getTendersLength, type Tender } from "@/lib/api"
 import {
   Pagination,
   PaginationContent,
@@ -11,10 +11,12 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+import { useAccount } from "wagmi"
 
 const ITEMS_PER_PAGE = 12
 
-export default function SearchTenders() {
+export default function SearchTenders({forRegistered}: {forRegistered: boolean}) {
+  const { address } = useAccount()
   const [tenders, setTenders] = useState<Tender[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +32,12 @@ export default function SearchTenders() {
   // Fetch total count once
   const fetchTotalCount = async () => {
     try {
-      const length = await getTendersLength(search)
+      let length = 0
+      if (forRegistered) {
+        length = await getRegisteredTendersLength(address as string, search)
+      } else {
+        length = await getTendersLength(search)
+      }
       setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
     } catch (err) {
       console.error("Error fetching total count:", err)
@@ -40,9 +47,14 @@ export default function SearchTenders() {
   // Fetch page data
   const fetchPageData = async () => {
     try {
+      let tendersData: Tender[] = []
       setLoading(true)
-      const page = currentPage - 1 // Convert from 1-based to 0-based
-      const tendersData = await getTenders(search, page, ITEMS_PER_PAGE)
+      const page = currentPage - 1 
+      if (forRegistered) {
+        tendersData = await getRegisteredTenders(address as string, search, page, ITEMS_PER_PAGE)
+      } else {
+        tendersData = await getTenders(search, page, ITEMS_PER_PAGE)
+      }
       
       if (tendersData) {
         setTenders(tendersData)
@@ -59,13 +71,17 @@ export default function SearchTenders() {
 
   // Fetch total count when component mounts or search changes
   useEffect(() => {
-    fetchTotalCount()
-  }, [search])
+    if (address || !forRegistered) {
+      fetchTotalCount()
+    }
+  }, [search, forRegistered, address])
 
   // Fetch page data when page changes or search changes
   useEffect(() => {
-    fetchPageData()
-  }, [currentPage, search])
+    if (address || !forRegistered) {
+      fetchPageData()
+    }
+  }, [currentPage, search, forRegistered, address])
 
   const getVisiblePages = () => {
     const pages = []

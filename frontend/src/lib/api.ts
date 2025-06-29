@@ -160,6 +160,42 @@ export async function getTendersLength(search: string = ""): Promise<number> {
   return response.data.data.tenderCreateds.length;
 }
 
+export async function getRegisteredTenders(participant: string, search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_TENDER_API,
+    {
+      query: createRegisteredTenderQuery(participant, search, page, pageSize),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.joinedTenders;
+}
+
+export async function getRegisteredTendersLength(participant: string, search: string = ""): Promise<number> {
+  const response = await axios.post(
+    import.meta.env.VITE_THE_GRAPH_TENDER_API,
+    {
+      query: createRegisteredTenderLengthQuery(participant, search),
+      operationName: 'Subgraphs',
+      variables: {}
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+      }
+    }
+  )
+  return response.data.data.joinedTenders.length;
+}
+
 export async function getMyTenders(address: string, search: string = "", page: number = 0, pageSize: number = 10): Promise<Tender[]> {
   const response = await axios.post(
     import.meta.env.VITE_THE_GRAPH_TENDER_API,
@@ -791,3 +827,45 @@ const createAccessRequestsToMeLengthQuery = (search: string = "", receiver: stri
     }
   `;
 };
+
+const createRegisteredTenderQuery = (address: string, search: string = "", page: number = 0, pageSize: number = 10) => {
+  let condition = ""
+  if (address) {
+    condition = `where: {participant: "${address}" }`
+  }
+  if (search) {
+    condition = `where: {participant: "${address}", name_contains: "${search}" }`
+  }
+  const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+  return `
+    query Subgraphs {
+      joinedTenders(${pagination}, ${condition}) {
+        id
+        participant
+        tenderId
+        owner
+        name
+        description
+        startDate
+        endDate
+      }
+    }
+  `
+}
+
+const createRegisteredTenderLengthQuery = (address: string, search: string = "") => {
+  let condition = ""
+  if (address) {
+    condition = `where: {owner: "${address}" }`
+  }
+  if (search) {
+    condition = `where: {owner: "${address}", name_contains: "${search}" }`
+  }
+  return `
+    query Subgraphs {
+      joinedTenders(${condition}) {
+        id
+      }
+    }
+  `
+}
