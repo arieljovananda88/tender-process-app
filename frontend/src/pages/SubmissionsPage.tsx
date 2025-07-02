@@ -3,7 +3,7 @@
 import { useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, User, Building, FileText, File, FileImage, FileSpreadsheet, Loader2 } from "lucide-react"
+import { ArrowLeft, User, FileText, File, FileImage, FileSpreadsheet, Loader2 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { downloadEncryptedFileWithDialog, formatDate } from "@/lib/utils"
 import { useDocumentStore, useTenderManager } from "@/hooks/useContracts"
@@ -222,6 +222,9 @@ export default function ParticipantSubmissionsPage() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Uploaded at {formatDate(doc.submissionDate)}
                   </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    CID: {doc.documentCid}
+                  </p>
                 </div>
               </div>
 
@@ -298,7 +301,6 @@ export default function ParticipantSubmissionsPage() {
                     </span>
                   </div>
                   <div className="flex items-center text-sm">
-                    <Building className="mr-2 h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Name:</span>
                     <span className="ml-2">{participant?.name}</span>
                   </div>

@@ -288,7 +288,7 @@ export async function decryptSymmetricKey(address: string, passphrase: string, e
 
 export async function downloadEncryptedFile(address: string, doc: Document, passphrase: string) {
   try {
-    const {encryptedKey, iv} = await getKey(address as string, doc.documentCid)
+    let {encryptedKey, iv} = await getKey(address as string, doc.documentCid)
 
    const symmetricKey = await decryptSymmetricKey(address, passphrase, encryptedKey)
 
@@ -385,7 +385,6 @@ export async function downloadEncryptedFileWithDialog(address: string, doc: Docu
   if (passphrase) {
     const success = await downloadEncryptedFile(address, doc, passphrase)
     if (!success) {
-      toast.error("No encrypted key found, you don't have access to this document");
       return false;
     }
     return true

@@ -147,7 +147,7 @@ export default function AccessRequestsPage() {
 
     const {encryptedKey, iv} = await getKey(address as string, request.cid)
     if (!encryptedKey) {
-      toast.error("No encrypted key found, you don't have access to this document");
+
       return false;
     }
 

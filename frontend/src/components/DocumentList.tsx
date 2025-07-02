@@ -200,6 +200,9 @@ export function DocumentList({
                         <p className="text-xs text-muted-foreground mt-1">
                           Uploaded at {formatDate(doc.submissionDate.toString())}
                         </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          CID: {doc.documentCid}
+                        </p>
                       </div>
                     </div>
                     <div className="flex-shrink-0">

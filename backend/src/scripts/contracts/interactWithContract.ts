@@ -39,7 +39,7 @@ async function main() {
   //   signer
   // );
 
-  const keyManager = "0x8A1394421770065b5AB3a528dd029f0989A938d1"
+  const keyManager = "0x46A841bAbb2BB27a778e6A47Aa5bf9D4754b1738"
 
   const keyManagerContract = new ethers.Contract(
     keyManager,
@@ -57,6 +57,17 @@ async function main() {
   // console.log("🔍 Calling getOwner...");
   // const owner = await tenderManagerContract.getOwner(tenderId);
   // console.log("📌 Owner of tender '2':", owner);
+
+  const getEncryptedKey = await keyManagerContract.getEncryptedKey("Qmf4QUiXSo3Aa4Ya415xT2hz7noJRvS575SBfCLxr2uGpp", "0x3B79DcEAB0DD32F193623A5cF7b2f3F10da3A462");
+  console.log("📌 encrypted key of '0x48dbd83Dc991955D21b0B741b66190b0Bc7bbA0f':", getEncryptedKey);
+
+  // const requestAccess = await keyManagerContract.requestAccess({
+  //   cid: "Qmf4QUiXSo3Aa4Ya415xT2hz7noJRvS575SBfCLxr2uGpp",
+  //   receiver: "0x48dbd83Dc991955D21b0B741b66190b0Bc7bbA0f",
+  //   documentName: "tender.pdf",
+  //   documentFormat: "pdf",
+  //   tenderId: "1",
+  // });
 
   // console.log("🔍 Calling getPublicKey...");
   // const publicKey = await publicKeyContract.getPublicKey("0x48dbd83Dc991955D21b0B741b66190b0Bc7bbA0f");
