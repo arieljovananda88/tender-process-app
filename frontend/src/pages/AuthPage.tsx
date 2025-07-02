@@ -29,10 +29,10 @@ const AuthPage: React.FC = () => {
       const signature = await signMessageAsync({ message: nonce });
 
       const res = await verifySignature(address, signature);
-      setAuthStatus(res.success ? "Authenticated!" : "Authentication Failed");
+
 
       if (res.success) {
-        console.log("Authenticated!");
+        setAuthStatus(res.success ? "Authenticated! Waiting to log in..." : "Authentication Failed");
         const user = await getUser(address);
         localStorage.setItem("user", JSON.stringify({ address, name: user.name, email: user.email }));
         navigate("/tenders/search");

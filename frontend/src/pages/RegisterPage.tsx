@@ -40,9 +40,9 @@ const RegisterPage: React.FC = () => {
     setPassphrase(e.target.value);
   };
 
-  const downloadPrivateKey = () => {
+  const downloadPrivateKey = (privateKeyString: string) => {
     const element = document.createElement('a');
-    const file = new Blob([privateKey], {type: 'application/json'});
+    const file = new Blob([privateKeyString], {type: 'application/json'});
     element.href = URL.createObjectURL(file);
     element.download = 'private-key.json';
     document.body.appendChild(element);
@@ -64,8 +64,6 @@ const RegisterPage: React.FC = () => {
       const db = await openDB();
       const tx = db.transaction('encryptedKeys', 'readwrite');
       const store = tx.objectStore('encryptedKeys');
-      
-      console.log(db)
       
       await new Promise<void>((resolve, reject) => {
         const request = store.put({
@@ -112,6 +110,10 @@ const RegisterPage: React.FC = () => {
       if (response.success) {
         toast.success('Registration successful!');
         setShowKeyDialog(true);
+        // Auto-download private key when dialog opens
+        setTimeout(() => {
+          downloadPrivateKey(JSON.stringify(jwk));
+        }, 100);
       } else {
         toast.error('Registration failed: ' + response.error);
       }
@@ -174,19 +176,13 @@ const RegisterPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Save Your Private Key</DialogTitle>
             <DialogDescription>
-              Please download your private key and set a passphrase to encrypt it for local storage.
+              Your private key has been automatically downloaded. Please set a passphrase to encrypt it for local storage.
               Keep your private key safe and never share it with anyone.
               The private key will NOT be stored on the server, and will NOT be shown again.
               Only you know your private key.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            <Button 
-              onClick={downloadPrivateKey}
-              className="w-full bg-green-500 hover:bg-green-600"
-            >
-              Download Private Key
-            </Button>
             <div className="space-y-2">
               <Label htmlFor="passphrase">Passphrase for Local Storage</Label>
               <Input

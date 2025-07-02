@@ -121,12 +121,11 @@ export default function ParticipantSubmissionsPage() {
 
 
   const handleDownload = async (doc: Document) => {
-    await downloadEncryptedFileWithDialog(address as string, doc)
-    // const success = await downloadEncryptedFile(address as string, doc, "buls2012")
-    // if (!success) {
-    //   setFailedDocument(doc)
-    //   setShowAccessModal(true)
-    // }
+    const success = await downloadEncryptedFileWithDialog(address as string, doc)
+    if (!success) {
+      setFailedDocument(doc)
+      setShowAccessModal(true)
+    }
   };
 
   const handleRequestAccess = async (doc: Document) => {

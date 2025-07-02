@@ -9,12 +9,11 @@ interface TenderCardProps {
   id: string
   owner: string
   name: string
-  description: string
   startDate: string
   endDate: string
 }
 
-export function TenderCard({ id, owner, name, description, startDate, endDate }: TenderCardProps) {
+export function TenderCard({ id, owner, name, startDate, endDate }: TenderCardProps) {
   const isActive = new Date(Number(endDate) * 1000).getTime() > Date.now()
 
   return (
@@ -32,7 +31,6 @@ export function TenderCard({ id, owner, name, description, startDate, endDate }:
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        <p className="text-sm line-clamp-3">{description}</p>
         <div className="flex flex-col gap-1 text-sm">
           <div className="flex items-center gap-1">
             <Calendar className="size-3.5" />

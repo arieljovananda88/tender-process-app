@@ -73,7 +73,6 @@ export function DocumentList({
   }
 
   const handleDownload = async (doc: Document) => {
-    console.log(doc)
     if (doc.documentType === "info") {
       await downloadFile(doc);
     } else {

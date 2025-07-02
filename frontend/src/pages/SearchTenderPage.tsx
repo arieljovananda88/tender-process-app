@@ -119,7 +119,7 @@ export default function SearchTenders({forRegistered}: {forRegistered: boolean})
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
-        <SearchHeader title="Search Tenders" />
+        <SearchHeader title={forRegistered ? "Search Registered Tenders" : "Search Tenders"} />
         <div className="p-6">
           <div className="text-center mb-6">Loading...</div>
           
@@ -204,7 +204,6 @@ export default function SearchTenders({forRegistered}: {forRegistered: boolean})
               id={tender.tenderId}
               owner={tender.owner}
               name={tender.name}
-              description={tender.description}
               startDate={tender.startDate}
               endDate={tender.endDate}
             />

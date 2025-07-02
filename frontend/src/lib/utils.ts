@@ -289,10 +289,6 @@ export async function decryptSymmetricKey(address: string, passphrase: string, e
 export async function downloadEncryptedFile(address: string, doc: Document, passphrase: string) {
   try {
     const {encryptedKey, iv} = await getKey(address as string, doc.documentCid)
-    if (!encryptedKey) {
-      toast.error("No encrypted key found, you don't have access to this document");
-      return false;
-    }
 
    const symmetricKey = await decryptSymmetricKey(address, passphrase, encryptedKey)
 
@@ -325,6 +321,7 @@ export async function downloadEncryptedFile(address: string, doc: Document, pass
   } catch (error) {
     console.error("Download error:", error);
     toast.error("Failed to decrypt and open document.");
+    return false
   }
 }
 
@@ -333,9 +330,6 @@ export async function downloadFile(doc: Document) {
     const ipfsUrl = `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/${doc.documentCid}`;
     const response = await fetch(ipfsUrl);
     if (!response.ok) throw new Error("Failed to fetch file from IPFS");
-
-    console.log(doc.documentFormat)
-    console.log(getMimeType(doc.documentFormat))
 
     const arrayBuffer = await response.arrayBuffer();
     const blob = new Blob([arrayBuffer], { type: getMimeType(doc.documentFormat) });
@@ -389,6 +383,11 @@ export function showPassphraseDialog(): Promise<string | null> {
 export async function downloadEncryptedFileWithDialog(address: string, doc: Document) {
   const passphrase = await showPassphraseDialog()
   if (passphrase) {
-    await downloadEncryptedFile(address, doc, passphrase)
+    const success = await downloadEncryptedFile(address, doc, passphrase)
+    if (!success) {
+      toast.error("No encrypted key found, you don't have access to this document");
+      return false;
+    }
+    return true
   }
 }

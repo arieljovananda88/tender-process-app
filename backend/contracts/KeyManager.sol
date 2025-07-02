@@ -79,9 +79,9 @@ contract KeyManager {
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         address requester = ecrecover(ethSignedMessageHash, input.v, input.r, input.s);
 
-        require(accessRequests[input.cid][input.receiver] == false, "Access already requested");
+        require(accessRequests[input.cid][requester] == false, "Access already requested");
 
-        accessRequests[input.cid][input.receiver] = true;
+        accessRequests[input.cid][requester] = true;
 
         emit RequestAccess(requester, input.receiver, input.cid, input.documentName, input.documentFormat, input.tenderId);
     }

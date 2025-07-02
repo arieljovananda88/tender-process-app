@@ -155,6 +155,7 @@ export default function AccessRequestsPage() {
     const publicKeyStorageContract = new ethers.Contract(publicKeyStorageAddress, PublicKeyStorageArtifact.abi, signer);
 
     const requesterPublicKeyString = await publicKeyStorageContract.getPublicKey(request.requester);
+    
 
     let requesterPublicKey;
     try {
@@ -164,7 +165,13 @@ export default function AccessRequestsPage() {
       return;
     }
 
-    const symmetricKey = await decryptSymmetricKey(address as string, "buls2012", encryptedKey)
+    const passphrase = await prompt("Enter passphrase")
+    if (!passphrase) {
+      toast.error("No passphrase entered");
+      return;
+    }
+
+    const symmetricKey = await decryptSymmetricKey(address as string, passphrase, encryptedKey)
 
     const encryptedSymmetricKey = await encryptSymmetricKeyWithPublicKey(symmetricKey, requesterPublicKey)
      
@@ -273,70 +280,9 @@ export default function AccessRequestsPage() {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
-        <SearchHeader title="Access Requests" />
+        <SearchHeader title="Access Requests" placeholder="file names" />
         <div className="p-6">
           <div className="text-center mb-6">Loading...</div>
-          
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full mb-6">
-              <TabsTrigger value="to-me" className="flex-1">Requests to Me</TabsTrigger>
-              <TabsTrigger value="my-requests" className="flex-1">My Requests</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <div className="mt-6 flex justify-end">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      if (currentPage > 1) {
-                        setCurrentPage(currentPage - 1)
-                      }
-                    }}
-                    className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                  />
-                </PaginationItem>
-                
-                {getVisiblePages().map((page, index, array) => (
-                  <React.Fragment key={page}>
-                    {index > 0 && array[index - 1] !== page - 1 && (
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    )}
-                    <PaginationItem>
-                      <PaginationLink
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          setCurrentPage(page)
-                        }}
-                        isActive={currentPage === page}
-                      >
-                        {page}
-                      </PaginationLink>
-                    </PaginationItem>
-                  </React.Fragment>
-                ))}
-
-                <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      if (currentPage < totalPages) {
-                        setCurrentPage(currentPage + 1)
-                      }
-                    }}
-                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
         </div>
       </div>
     )

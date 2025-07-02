@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Building2, ChevronDown, ClipboardList, FileSearch, Package, Search } from "lucide-react"
+import { Building2, ChevronDown, ClipboardList, FileSearch, Package, Search, KeyRound, ScanEye} from "lucide-react"
 
 import {
   Sidebar,
@@ -158,9 +158,16 @@ export function DashboardSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/access-requests")}>
               <Link to="/access-requests">
-                <ClipboardList className="size-4" />
+                <ScanEye className="size-4" />
                 <span>Access Requests</span>
               </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          <SidebarMenuItem>
+            <SidebarMenuButton className="w-full" onClick={() => setShowReimportDialog(true)}>
+              <KeyRound className="size-4" />
+              <span>Re-import Private Key</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
@@ -168,11 +175,6 @@ export function DashboardSidebar() {
       </SidebarContent>
       <SidebarFooter className="absolute bottom-0 left-0 right-0 p-4 h-auto">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton className="w-full" onClick={() => setShowReimportDialog(true)}>
-              <span>Re-import Private Key</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton className="w-full">
               <ConnectButton />

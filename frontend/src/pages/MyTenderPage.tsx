@@ -348,7 +348,6 @@ export default function MyTenders() {
               id={tender.tenderId}
               owner={tender.owner}
               name={tender.name}
-              description={tender.description}
               startDate={tender.startDate}
               endDate={tender.endDate}
             />
