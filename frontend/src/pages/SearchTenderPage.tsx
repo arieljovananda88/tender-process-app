@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/pagination"
 import { useAccount } from "wagmi"
 
-const ITEMS_PER_PAGE = 12
+const ITEMS_PER_PAGE = 8
 
 export default function SearchTenders({forRegistered}: {forRegistered: boolean}) {
   const { address } = useAccount()

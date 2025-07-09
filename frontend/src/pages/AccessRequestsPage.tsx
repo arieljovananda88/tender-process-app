@@ -21,7 +21,7 @@ import { ethers } from "ethers"
 import { grantAccess } from "@/lib/api"
 import PublicKeyStorageArtifact from "../../../backend/artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json"
 
-const ITEMS_PER_PAGE = 12
+const ITEMS_PER_PAGE = 8
 
 export default function AccessRequestsPage() {
   const { address } = useAccount()

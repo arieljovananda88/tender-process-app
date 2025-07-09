@@ -25,7 +25,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 
-const ITEMS_PER_PAGE = 12
+const ITEMS_PER_PAGE = 8
 
 interface TenderFormData {
   name: string;
