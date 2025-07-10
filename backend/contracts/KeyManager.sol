@@ -12,7 +12,9 @@ contract KeyManager {
 
     // Mapping from CID to receiver address to encrypted key
     mapping(string => mapping(address => string)) private encryptedKeys;
+    mapping(string => mapping(address => string)) private ivs;
     mapping(string => mapping(address => bool)) private accessRequests;
+
 
     event EmitKey(
         address receiver,
@@ -67,9 +69,12 @@ contract KeyManager {
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         address senderAddress = ecrecover(ethSignedMessageHash, input.v, input.r, input.s);
 
-        require(documentStore.getDocumentOwner(input.cid) == senderAddress, "Only document owner can emit key");
+       if (documentStore.getDocumentOwner(input.cid) != senderAddress) {
+        revert(string(abi.encodePacked("Signature verification failed. Sender address: ", senderAddress)));
+    }
         
         encryptedKeys[input.cid][input.receiver] = input.encryptedKey;
+        ivs[input.cid][input.receiver] = input.iv;
         
         emit EmitKey(input.receiver, senderAddress, input.encryptedKey, input.iv, input.cid);
     }
@@ -86,7 +91,8 @@ contract KeyManager {
         emit RequestAccess(requester, input.receiver, input.cid, input.documentName, input.documentFormat, input.tenderId);
     }
 
-    function getEncryptedKey(string memory cid, address receiver) external view returns (string memory) {
-        return encryptedKeys[cid][receiver];
+    function getEncryptedKey(string memory cid, address receiver) external view returns (string memory, string memory) {
+        return (encryptedKeys[cid][receiver], ivs[cid][receiver]);
     }
+
 } 

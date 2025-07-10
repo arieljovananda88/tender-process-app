@@ -8,7 +8,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./index.css";
 
-const chains = [sepolia, arbitrumSepolia];
+const chains = [arbitrumSepolia];
 
 const { connectors } = getDefaultWallets({
   appName: "Tender dApp",

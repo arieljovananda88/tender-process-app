@@ -5,6 +5,8 @@ import { getKey } from "./api";
 import { toast } from "react-toastify";
 import { Document } from "@/lib/types"
 import { Buffer } from "buffer";
+import KeyManagerArtifact from '../../../backend/artifacts/contracts/KeyManager.sol/KeyManager.json';
+import { ethers } from "ethers";
 
 window.Buffer = Buffer;
 
@@ -288,7 +290,24 @@ export async function decryptSymmetricKey(address: string, passphrase: string, e
 
 export async function downloadEncryptedFile(address: string, doc: Document, passphrase: string) {
   try {
-    let {encryptedKey, iv} = await getKey(address as string, doc.documentCid)
+    let encryptedKey = "";
+    let iv = "";
+    const res = await getKey(address as string, doc.documentCid)
+
+    if (!res) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const documentStoreAddress = import.meta.env.VITE_KEY_MANAGER_CONTRACT_ADDRESS  ;
+      const contract = new ethers.Contract(documentStoreAddress, KeyManagerArtifact.abi, signer);
+
+      const docs = await contract.getEncryptedKey(doc.documentCid, address);
+
+      encryptedKey = docs[0]
+      iv = docs[1]
+    }else{
+      encryptedKey = res.encryptedKey
+      iv = res.iv
+    }
 
    const symmetricKey = await decryptSymmetricKey(address, passphrase, encryptedKey)
 

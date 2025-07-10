@@ -37,7 +37,7 @@ contract TenderManager {
         bytes32 s,
         uint256 deadline
     ) external {
-        require(startDate < endDate, "Invalid dates");
+        // require(startDate < endDate, "Invalid dates"); // TODO: Uncomment this  
 
         bytes32 messageHash = keccak256(abi.encodePacked(deadline));
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
@@ -90,8 +90,8 @@ contract TenderManager {
         address recovered = ecrecover(ethSignedMessageHash, v, r, s);
 
         require(recovered == tender.owner, "Invalid signature");
-        require(block.timestamp >= tender.startDate, "Tender not started");
-        require(block.timestamp <= tender.endDate, "Tender ended");
+        // require(block.timestamp >= tender.startDate, "Tender not started");
+        // require(block.timestamp <= tender.endDate, "Tender ended");
         require(!participants[tenderId][participant], "Already a participant");
 
         participants[tenderId][participant] = true;

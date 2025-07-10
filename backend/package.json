@@ -23,7 +23,8 @@
     "dev": "nodemon --exec ts-node ./cmd/index.ts",
     "compile": "hardhat compile",
     "deploy:l2": "hardhat run scripts/deploy.ts --network optimism",
-    "deployContract": "npx hardhat run src/scripts/contracts/deploy.ts --network arbitrumSepolia"
+    "deployContract": "npx hardhat run src/scripts/contracts/deploy.ts --network arbitrumSepolia",
+    "interact": "npx ts-node --esm src/scripts/contracts/interactWithContract.ts"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.3",

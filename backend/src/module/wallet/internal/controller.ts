@@ -12,9 +12,9 @@ async function createWallet(req: Request, res: Response) {
       message: "Wallet created successfully",
       address: wallet.address,
       publicKey: wallet.publicKey,
-      privateKey: wallet.privateKey, 
+      privateKey: wallet.privateKey,
       mnemonic: wallet.mnemonic?.phrase, 
-      network: "Sepolia Testnet"
+      network: "ETH"
     });
 
   } catch (error: any) {
