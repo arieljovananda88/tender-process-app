@@ -1,12 +1,12 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { AES, enc, lib, mode, pad } from "crypto-js";
-import { getKey } from "./api";
 import { toast } from "react-toastify";
 import { Document } from "@/lib/types"
 import { Buffer } from "buffer";
 import KeyManagerArtifact from '../../../backend/artifacts/contracts/KeyManager.sol/KeyManager.json';
 import { ethers } from "ethers";
+import { create } from "ipfs-http-client";
 
 window.Buffer = Buffer;
 
@@ -292,22 +292,17 @@ export async function downloadEncryptedFile(address: string, doc: Document, pass
   try {
     let encryptedKey = "";
     let iv = "";
-    const res = await getKey(address as string, doc.documentCid)
+    
+    // Always use contract call to get encrypted key
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const documentStoreAddress = import.meta.env.VITE_KEY_MANAGER_CONTRACT_ADDRESS;
+    const contract = new ethers.Contract(documentStoreAddress, KeyManagerArtifact.abi, signer);
 
-    if (!res) {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const documentStoreAddress = import.meta.env.VITE_KEY_MANAGER_CONTRACT_ADDRESS  ;
-      const contract = new ethers.Contract(documentStoreAddress, KeyManagerArtifact.abi, signer);
+    const docs = await contract.getEncryptedKey(doc.documentCid, address);
 
-      const docs = await contract.getEncryptedKey(doc.documentCid, address);
-
-      encryptedKey = docs[0]
-      iv = docs[1]
-    }else{
-      encryptedKey = res.encryptedKey
-      iv = res.iv
-    }
+    encryptedKey = docs[0]
+    iv = docs[1]
 
    const symmetricKey = await decryptSymmetricKey(address, passphrase, encryptedKey)
 
@@ -409,3 +404,63 @@ export async function downloadEncryptedFileWithDialog(address: string, doc: Docu
     return true
   }
 }
+
+export const initIPFSClient = async () => {
+  // Connect to the IPFS API
+  const ipfs = create({
+    host: import.meta.env.VITE_IPFS_HOST || 'localhost',
+    port: Number(import.meta.env.VITE_IPFS_PORT) || 5051,
+    protocol: import.meta.env.VITE_IPFS_PROTOCOL || 'http'
+  });
+  return ipfs;
+};
+
+
+async function generateSymmetricKey() {
+  return window.crypto.getRandomValues(new Uint8Array(32)); // AES-256 = 32 bytes
+}
+
+async function encryptFile(arrayBuffer: ArrayBuffer, key: any) {
+  const iv = window.crypto.getRandomValues(new Uint8Array(16)); // AES block size
+  const cryptoKey = await window.crypto.subtle.importKey(
+    "raw",
+    key,
+    { name: "AES-CBC" },
+    false,
+    ["encrypt"]
+  );
+
+  const encryptedBuffer = await window.crypto.subtle.encrypt(
+    { name: "AES-CBC", iv },
+    cryptoKey,
+    arrayBuffer
+  );
+
+  return {
+    encryptedBuffer: new Uint8Array(encryptedBuffer),
+    key: Buffer.from(key).toString('hex'),
+    iv: Buffer.from(iv).toString('hex')
+  };
+}
+
+export async function uploadToIPFSClientEncrypted(file: File) {
+  const arrayBuffer = await file.arrayBuffer();
+  const symmetricKey = await generateSymmetricKey();
+  const { encryptedBuffer, key, iv } = await encryptFile(arrayBuffer, symmetricKey);
+
+  const ipfs = await initIPFSClient();
+
+  const fileToUpload = {
+    path: file.name,
+    content: encryptedBuffer
+  };
+
+  const result = await ipfs.add(fileToUpload);
+
+  return {
+    cid: result.cid.toString(),
+    key,
+    iv
+  };
+}
+

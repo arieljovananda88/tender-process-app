@@ -118,7 +118,7 @@ export default function MyTenders() {
 
       const response = await createTender(
         formData.name,
-        formData.description,
+        "description",
         startDate.toISOString(),
         endDate.toISOString(),
         deadline,
@@ -294,16 +294,6 @@ export default function MyTenders() {
                       value={formData.name}
                       onChange={handleInputChange}
                       placeholder="Enter tender name"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Input
-                      id="description"
-                      name="description"
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      placeholder="Enter tender description"
                     />
                   </div>
                   <div className="grid gap-2">

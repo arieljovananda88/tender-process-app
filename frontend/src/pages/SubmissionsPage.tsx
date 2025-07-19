@@ -109,14 +109,24 @@ export default function ParticipantSubmissionsPage() {
   }, []);
 
   useEffect(() => {
-    if (tender &&
-      isRegistered &&
-      address?.toLowerCase() === tender.owner?.toLowerCase() &&
-      !isWinner) {
-      setChooseWinner(true)
-    } else {
-      setChooseWinner(false)
-    }
+    const checkWinnerStatus = async () => {
+      if (tender &&
+        isRegistered &&
+        address?.toLowerCase() === tender.owner?.toLowerCase() &&
+        !isWinner) {
+        // Check if winnerAddress is empty string or null/undefined
+        const winnerAddress = await getWinner(tenderId);
+        if (!winnerAddress || winnerAddress === "" || winnerAddress === "0x0000000000000000000000000000000000000000") {
+          setChooseWinner(true)
+        } else {
+          setChooseWinner(false)
+        }
+      } else {
+        setChooseWinner(false)
+      }
+    };
+    
+    checkWinnerStatus();
   }, [tender, isRegistered, address, isWinner])
 
 

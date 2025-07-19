@@ -6,14 +6,12 @@ dotenv.config();
 const app = express()
 
 import { uploadDocumentRouter } from '../../module/documents/routes'
-import { walletRouter } from '../../module/wallet/routes'
 import { authRouter } from "../../module/auth/routes";
 import { tenderRouter } from "../../module/tender/routes";
 
 app.use(express.json())
 app.use(cors())
 app.use('/document', uploadDocumentRouter.router)
-app.use('/wallet', walletRouter.router)
 app.use('/auth', authRouter.router)
 app.use('/tender', tenderRouter.router)
 

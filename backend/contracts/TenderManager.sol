@@ -15,8 +15,6 @@ contract TenderManager {
     mapping(string => mapping(address => bool)) public participants;
     mapping(string => mapping(address => bool)) public pendingParticipants;
 
-    string[] public allTenderIds;
-    mapping(address => string[]) public ownerTenderIds;
     mapping(string => address[]) public tenderParticipants;
     mapping(string => address[]) public pendingTenderParticipants;
 
@@ -51,9 +49,6 @@ contract TenderManager {
             endDate: endDate,
             winner: address(0)
         });
-
-        allTenderIds.push(tenderId);
-        ownerTenderIds[ownerAddress].push(tenderId);
 
         emit TenderCreated(tenderId, ownerAddress, name, description, startDate, endDate);
     }

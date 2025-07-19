@@ -11,12 +11,12 @@ function generateTenderId(): string {
 export async function createTender(req: Request, res: Response) {
     const tenderManager = getTenderManagerContractInstance();
     try {
-        const { name, description, startDate, endDate, deadline,
+        const { name, startDate, endDate, deadline,
             v,
             r,
             s, } = req.body;
         
-        if (!name || !description || !startDate || !endDate || !deadline || !v || !r || !s) {
+        if (!name || !startDate || !endDate || !deadline || !v || !r || !s) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
@@ -30,7 +30,7 @@ export async function createTender(req: Request, res: Response) {
         const tx = await tenderManager.createTender(
             tenderId,
             name,
-            description,
+            "description",
             startTimestamp,
             endTimestamp,
             v,

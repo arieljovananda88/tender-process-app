@@ -175,16 +175,16 @@ export function DocumentList({
     <Card>
       <CardContent className="p-4 space-y-4">
         <div className="flex justify-between items-center">
-          {/* {canUpload && isActive && (
+          {canUpload && isActive && (
             <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)} className="h-8">
               <Plus className="h-4 w-4 mr-1" />
               Add File
             </Button>
-          )} */}
-           <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)} className="h-8">
+          )}
+           {/* <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)} className="h-8">
               <Plus className="h-4 w-4 mr-1" />
               Add File
-            </Button>
+            </Button> */}
         </div>
 
         {documents.length === 0 ? (

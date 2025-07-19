@@ -46,7 +46,7 @@ contract DocumentStore {
         tenderManager = ITenderManager(tenderManagerAddress);
     }
 
-    function uploadTenderInfoDocumentWithSignature(UploadInput memory input) public {
+    function uploadTenderInfoDocumen(UploadInput memory input) public {
         // Create the message hash
         bytes32 messageHash = keccak256(abi.encodePacked(input.tenderId, input.documentName, input.deadline));
         bytes32 ethSignedMessageHash = keccak256(
@@ -82,7 +82,7 @@ contract DocumentStore {
         emit DocumentUploaded(input.tenderId, signer, input.documentCid, input.documentName, block.timestamp);
     }
 
-    function uploadDocumentWithSignature(UploadInput memory input) public {
+    function uploadDocument(UploadInput memory input) public {
         bytes32 messageHash = keccak256(abi.encodePacked(input.tenderId, input.documentName, input.deadline));
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
 

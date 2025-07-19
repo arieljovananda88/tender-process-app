@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import TenderManagerArtifact from '../../../backend/artifacts/contracts/TenderManager.sol/TenderManager.json';
 import DocumentStoreArtifact from '../../../backend/artifacts/contracts/DocumentStore.sol/DocumentStore.json';
-import { addParticipant as addParticipantApi, getParticipants, getPendingParticipants, ParticipantResponse } from '../lib/api';
+import { getParticipants, getPendingParticipants, ParticipantResponse } from '../lib/api';
 import { Document } from "@/lib/types"
 
 interface Participant {
@@ -111,21 +111,24 @@ export function useTenderManager() {
       const signature = await signer.signMessage(ethers.utils.arrayify(messageHash));
       const { v, r, s } = ethers.utils.splitSignature(signature);
 
-      const response = await addParticipantApi(
+      // Get contract instance
+      const tenderManagerAddress = import.meta.env.VITE_TENDER_MANAGER_CONTRACT_ADDRESS;
+      const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
+
+      // Call the smart contract
+      const tx = await contract.addParticipant(
         tenderId,
         participantAddress,
         participantName,
         participantEmail,
-        deadline,
         v,
         r,
         s,
-        await signer.getAddress()
+        deadline
       );
 
-      if (!response.success) {
-        throw new Error(response.message || 'Failed to add participant');
-      }
+      // Wait for transaction to be mined
+      await tx.wait();
 
       return true;
     } catch (error) {

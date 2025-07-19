@@ -1,18 +1,17 @@
 import { useState } from "react";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { checkIsRegistered, getNonce, verifySignature, getUser } from "@/lib/api";
+import { checkIsRegistered , getUser } from "@/lib/api";
 import { ethers, Wallet } from "ethers";
 import PublicKeyStorageArtifact from '../../../backend/artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json';
 
 const AuthPage: React.FC = () => {
   const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
   const [authStatus, setAuthStatus] = useState<string>("");
   const [showWalletDialog, setShowWalletDialog] = useState(false);
   const [generatedWallet, setGeneratedWallet] = useState<{ address: string; privateKey: string, publicKey: string, mnemonic: string, network: string } | null>(null);
@@ -29,34 +28,21 @@ const AuthPage: React.FC = () => {
       return navigate("/register");
     }
 
-    try {
-      const nonce = await getNonce(address);
-      const signature = await signMessageAsync({ message: nonce });
+      setAuthStatus("Waiting to log in...");
+      const user = await getUser(address);
+      if (!user) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const publicKeyStorageAddress = import.meta.env.VITE_PUBLIC_KEY_STORAGE_CONTRACT_ADDRESS  ;
+        const contract = new ethers.Contract(publicKeyStorageAddress, PublicKeyStorageArtifact.abi, signer);
 
-      const res = await verifySignature(address, signature);
-
-
-      if (res.success) {
-        setAuthStatus(res.success ? "Authenticated! Waiting to log in..." : "Authentication Failed");
-        const user = await getUser(address);
-        if (!user) {
-          const provider = new ethers.providers.Web3Provider(window.ethereum);
-          const signer = provider.getSigner();
-          const publicKeyStorageAddress = import.meta.env.VITE_PUBLIC_KEY_STORAGE_CONTRACT_ADDRESS  ;
-          const contract = new ethers.Contract(publicKeyStorageAddress, PublicKeyStorageArtifact.abi, signer);
-
-          const email = await contract.getEmail(address);
-          const name = await contract.getName(address);
-          localStorage.setItem("user", JSON.stringify({ address, name, email }));
-        }else{
-          localStorage.setItem("user", JSON.stringify({ address, name: user.name, email: user.email }));
-        }
-        navigate("/tenders/search");
+        const email = await contract.getEmail(address);
+        const name = await contract.getName(address);
+        localStorage.setItem("user", JSON.stringify({ address, name, email }));
+      }else{
+        localStorage.setItem("user", JSON.stringify({ address, name: user.name, email: user.email }));
       }
-    } catch (err) {
-      console.error("Signing failed", err);
-      setAuthStatus("Authentication Failed");
-    }
+      navigate("/tenders/search");
   };
 
   const handleCreateWallet = () => {
@@ -93,7 +79,7 @@ const AuthPage: React.FC = () => {
                 className="w-full bg-blue-500 hover:bg-blue-600"
                 onClick={handleSign}
               >
-                Sign & Authenticate
+                Log In
               </Button>
 
               <Label className="text-center block mt-4">Have not registered? register here</Label>
@@ -109,16 +95,19 @@ const AuthPage: React.FC = () => {
             </div>
           )}
 
-          <div className="text-center mt-4">
-            <Label className="text-sm text-gray-500">Don't have a wallet?</Label>
-            <Button
-              variant="link"
-              className="text-blue-500 hover:text-blue-600 p-0 h-auto"
-              onClick={handleCreateWallet}
-            >
-              Create one here
-            </Button>
-          </div>
+          {!isConnected && (
+            <div className="text-center mt-4">
+              <Label className="text-sm text-gray-500">{"Don't have a wallet? "}</Label>
+              <Button
+                variant="link"
+                className="text-blue-500 hover:text-blue-600 p-0 h-auto"
+                onClick={handleCreateWallet}
+              >
+                Create one here
+              </Button>
+            </div>
+          )}
+
         </Card>
       </div>
 
