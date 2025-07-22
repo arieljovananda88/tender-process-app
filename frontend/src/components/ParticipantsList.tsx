@@ -4,12 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Trophy } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { shortenAddress } from "@/lib/utils"
-
-interface Participant {
-  address: string
-  name: string
-  email: string
-}
+import { Participant } from "@/lib/types"
 
 interface ParticipantsListProps {
   forPending: boolean

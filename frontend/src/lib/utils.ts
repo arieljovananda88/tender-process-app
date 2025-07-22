@@ -6,6 +6,7 @@ import { Document } from "@/lib/types"
 import { Buffer } from "buffer";
 import { create } from "ipfs-http-client";
 import { getAccessManagerContract } from "./contracts";
+import { getDocumentByCids } from "./api_the_graph";
 
 window.Buffer = Buffer;
 
@@ -325,7 +326,13 @@ export async function downloadEncryptedFile(address: string, doc: Document, pass
     const decryptedHex = decrypted.toString(enc.Hex);
     const decryptedBytes = Buffer.from(decryptedHex, "hex");
 
-    const blob = new Blob([decryptedBytes], { type: getMimeType(doc.documentFormat) });
+    let blob;
+
+    if (doc.documentFormat) {
+      blob = new Blob([decryptedBytes], { type: getMimeType(doc.documentFormat) });
+    } else {
+      blob = new Blob([decryptedBytes], { type: "application/octet-stream" });
+    }
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
   } catch (error) {
@@ -584,4 +591,69 @@ export function generateTenderId(): string {
   const timestamp = Date.now().toString(36); // Convert timestamp to base36
   const random = Math.random().toString(36).substring(2, 8); // Random 6 chars
   return `${timestamp}-${random}`; // Format: timestamp-random
+}
+
+export async function decryptDocuments(response: any, tenderOwner: string, passphrase: string, expectedTenderId: string) {
+    const cidsOfTender = []
+    const mapTenderKeyToCid: { [key: string]: string } = {}
+    const mapIvToCid: { [key: string]: string } = {}
+    if (response && response.length > 0) {
+      for (const res of response) {
+        const symmetricKey = await decryptSymmetricKey(tenderOwner as string, passphrase, res.encryptedKey)
+        const tenderId = await decryptWithSymmetricKey(res.tenderId, symmetricKey, res.iv)
+        if (tenderId === expectedTenderId) {
+          cidsOfTender.push(res.cid)
+          mapTenderKeyToCid[res.cid] = symmetricKey
+          mapIvToCid[res.cid] = res.iv
+        }
+      }
+    }
+    
+    const documents = await getDocumentByCids(cidsOfTender)
+    const decryptedDocuments: any[] = []
+    for (let index = 0; index < documents.length; index++) {
+      const encryptedMetadata = documents[index];
+
+      const decryptedMetadata = await decryptDocumentMetadata(
+        encryptedMetadata.tenderId, 
+        encryptedMetadata.documentName,  
+        encryptedMetadata.documentFormat, 
+        encryptedMetadata.participantName, 
+        encryptedMetadata.participantEmail, 
+        mapTenderKeyToCid[encryptedMetadata.documentCid], 
+        mapIvToCid[encryptedMetadata.documentCid]);
+      
+      decryptedDocuments.push({
+        tenderId: decryptedMetadata.decryptedTenderId,
+        documentOwner: encryptedMetadata.contestant,
+        documentName: decryptedMetadata.decryptedDocumentName,
+        documentFormat: decryptedMetadata.decryptedDocumentFormat,
+        participantName: decryptedMetadata.decryptedParticipantName,
+        participantEmail: decryptedMetadata.decryptedParticipantEmail,
+        submissionDate: encryptedMetadata.submissionDate,
+        documentCid: encryptedMetadata.documentCid
+      });
+    }
+    return decryptedDocuments;
+}
+
+export async function decryptTenderKey(response: any, tenderOwner: string, passphrase: string, expectedTenderId: string, receiver: string, receiverJwk: any) {
+  let tenderKeys: any[] = []
+  if (response && response.length > 0) {
+    for (const res of response) {
+      const symmetricKey = await decryptSymmetricKey(tenderOwner as string, passphrase, res.encryptedKey)
+      const tenderId = await decryptWithSymmetricKey(res.tenderId, symmetricKey, res.iv)
+      const receiverEncryptedSymmetricKey = await encryptWithPublicKey(symmetricKey, receiverJwk)
+      if (tenderId === expectedTenderId) {
+          tenderKeys.push({
+            receiver: receiver,
+            encryptedKey: receiverEncryptedSymmetricKey,
+            iv: res.iv,
+            cid: res.cid,
+            tenderId: res.tenderId
+          })
+      }
+    }
+  }
+  return tenderKeys
 }

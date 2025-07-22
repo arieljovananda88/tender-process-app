@@ -1,7 +1,16 @@
 import React, { useEffect, useState } from "react"
 import { SearchHeader } from "@/components/SearchHeader"
-import { getAccessRequests, getAccessRequestsLength, getAccessRequestsToMe, getAccessRequestsToMeLength, getKey } from "@/lib/api_the_graph"
+import { getAccessRequests, getAccessRequestsLength, getAccessRequestsToMe, getAccessRequestsToMeLength, getKey, getTenderAccessRequestsByMeLength, getTenderAccessRequestsByMe, getTenderAccessRequestsToMeLength, getTenderAccessRequestsToMe } from "@/lib/api_the_graph"
 import { AccessRequest } from "@/lib/types"
+
+interface TenderRequest {
+  requester: string;
+  receiver: string;
+  tenderId: string;
+  tenderName: string;
+  tenderStartDate: string;
+  tenderEndDate: string;
+}
 import {
   Pagination,
   PaginationContent,
@@ -13,12 +22,12 @@ import {
 } from "@/components/ui/pagination"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileText, User, Calendar, Download } from "lucide-react"
-import { decryptSymmetricKey, encryptWithPublicKey, formatDate, shortenAddress, downloadEncryptedFileWithDialog } from "@/lib/utils"
+import { FileText, User, Calendar, Download, Building2 } from "lucide-react"
+import { decryptSymmetricKey, encryptWithPublicKey, formatDate, shortenAddress, downloadEncryptedFileWithDialog, showPassphraseDialog } from "@/lib/utils"
 import { useAccount } from "wagmi"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "react-toastify"
-import { grantAccess } from "@/lib/api_contract"
+import { grantAccess, grantTenderAccess } from "@/lib/api_contract"
 import { getPublicKeyStorageContract } from "@/lib/contracts"
 
 const ITEMS_PER_PAGE = 8
@@ -27,43 +36,22 @@ export default function AccessRequestsPage() {
   const { address } = useAccount()
   const [myRequests, setMyRequests] = useState<AccessRequest[]>([])
   const [requestsToMe, setRequestsToMe] = useState<AccessRequest[]>([])
+  const [tenderRequests, setTenderRequests] = useState<TenderRequest[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [activeTab, setActiveTab] = useState("to-me")
+  const [activeTab, setActiveTab] = useState("tender-requests")
+  const [userRole, setUserRole] = useState<string>("")
 
-  const handleSearch = (query: string) => {
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        if (activeTab === "to-me") {
-          const requests = await getAccessRequestsToMe(query, 0, ITEMS_PER_PAGE, address as string)
-          const length = await getAccessRequestsToMeLength(query, address as string)
-          if (requests) {
-            setRequestsToMe(requests)
-            setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
-            setCurrentPage(1)
-          }
-        } else {
-          const requests = await getAccessRequests(query, 0, ITEMS_PER_PAGE, address as string)
-          const length = await getAccessRequestsLength(query, address as string)
-          if (requests) {
-            setMyRequests(requests)
-            setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
-            setCurrentPage(1)
-          }
-        }
-      } catch (err) {
-        setError("An error occurred while fetching access requests")
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
+  // Get user role from localStorage
+  useEffect(() => {
+    const user = localStorage.getItem("user")
+    if (user) {
+      const userData = JSON.parse(user)
+      setUserRole(userData.role || "")
     }
-
-    fetchData()
-  }
+  }, [])
 
   // Fetch data for current page
   const fetchPageData = async () => {
@@ -71,19 +59,42 @@ export default function AccessRequestsPage() {
       setLoading(true)
       const offset = (currentPage - 1) * ITEMS_PER_PAGE
       
-      if (activeTab === "to-me") {
-        const requestsToMeData = await getAccessRequestsToMe("", offset, ITEMS_PER_PAGE, address as string)
-        const length = await getAccessRequestsToMeLength("", address as string)
-        if (requestsToMeData) {
-          setRequestsToMe(requestsToMeData)
-          setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
+      if (activeTab === "tender-requests") {
+        if (userRole === "organizer") {
+          // Organizers see requests to them
+          const requestsToMeData = await getTenderAccessRequestsToMe(address as string, offset, ITEMS_PER_PAGE)
+          const length = await getTenderAccessRequestsToMeLength(address as string)
+          if (requestsToMeData) {
+            setTenderRequests(requestsToMeData)
+            setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
+          }
+        } else {
+          // Third parties see their own requests
+          const myRequestsData = await getTenderAccessRequestsByMe(address as string, offset, ITEMS_PER_PAGE)
+          const length = await getTenderAccessRequestsByMeLength(address as string)
+          if (myRequestsData) {
+            setTenderRequests(myRequestsData)
+            setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
+          }
         }
       } else {
-        const myRequestsData = await getAccessRequests("", offset, ITEMS_PER_PAGE, address as string)
-        const length = await getAccessRequestsLength("", address as string)
-        if (myRequestsData) {
-          setMyRequests(myRequestsData)
-          setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
+        // Content requests - different behavior based on role
+        if (userRole === "organizer") {
+          // Organizers see requests to them
+          const requestsToMeData = await getAccessRequestsToMe("", offset, ITEMS_PER_PAGE, address as string)
+          const length = await getAccessRequestsToMeLength("", address as string)
+          if (requestsToMeData) {
+            setRequestsToMe(requestsToMeData)
+            setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
+          }
+        } else {
+          // Third parties see their own requests
+          const myRequestsData = await getAccessRequests("", offset, ITEMS_PER_PAGE, address as string)
+          const length = await getAccessRequestsLength("", address as string)
+          if (myRequestsData) {
+            setMyRequests(myRequestsData)
+            setTotalPages(Math.ceil(length / ITEMS_PER_PAGE))
+          }
         }
       }
     } catch (err) {
@@ -96,10 +107,10 @@ export default function AccessRequestsPage() {
 
   // Fetch page data when page changes
   useEffect(() => {
-    if (address) {
+    if (address && userRole) {
       fetchPageData()
     }
-  }, [address, currentPage, activeTab])
+  }, [address, currentPage, activeTab, userRole])
 
   const getVisiblePages = () => {
     const pages = []
@@ -129,7 +140,8 @@ export default function AccessRequestsPage() {
     return pages
   }
 
-  const currentRequests = activeTab === "to-me" ? requestsToMe : myRequests
+  const currentRequests = userRole === "organizer" ? requestsToMe : myRequests
+  const currentTenderRequests = tenderRequests
   const paginatedRequests = currentRequests
 
   const handleGrantAccess = async (request: AccessRequest) => {
@@ -163,7 +175,7 @@ export default function AccessRequestsPage() {
 
     const encryptedSymmetricKey = await encryptWithPublicKey(symmetricKey, requesterPublicKey)
      
-    const response = await grantAccess(request.requester, request.tenderId, request.cid, request.documentName, encryptedSymmetricKey, iv)
+    const response = await grantAccess(request.requester, request.cid, encryptedSymmetricKey, iv)
     if (response.success) {
       toast.success("Access granted!")
     } else {
@@ -172,6 +184,7 @@ export default function AccessRequestsPage() {
   }
 
   const handleDownload = async (request: AccessRequest) => {
+    console.log(request)
     const doc = {
       documentCid: request.cid,
       documentName: request.documentName,
@@ -180,6 +193,30 @@ export default function AccessRequestsPage() {
       submissionDate: "",
     }
     await downloadEncryptedFileWithDialog(address as string, doc)
+  }
+
+  const handleGrantTenderAccess = async (request: TenderRequest) => {
+    const passphrase = await showPassphraseDialog()
+    if (!passphrase) {
+      toast.error("No passphrase entered");
+      return;
+    }
+    try {
+      const response = await grantTenderAccess(request.tenderId, request.requester, passphrase, address as string)
+      if (response.success) {
+        toast.success("Tender access granted!")
+      } else {
+        toast.error("Failed to grant tender access")
+      }
+    } catch (error: any) {
+      console.error("Error granting tender access:", error)
+      toast.error(`Failed to grant tender access: ${error.message}`)
+    }
+  }
+
+  const handleCheckTenderAccess = (tenderId: string) => {
+    // Navigate to tender detail page
+    window.location.href = `/tenders/${tenderId}`
   }
 
   const renderRequestCard = (request: AccessRequest) => (
@@ -216,7 +253,7 @@ export default function AccessRequestsPage() {
               {request.tenderId}
             </span>
           </div>
-          {activeTab === "to-me" ? (
+          {userRole === "organizer" ? (
             <div className="flex items-center text-sm">
               <User className="mr-2 h-4 w-4 text-muted-foreground" />
               <span className="font-medium">Requester:</span>
@@ -243,7 +280,7 @@ export default function AccessRequestsPage() {
         </div>
       </CardContent>
       <CardFooter className="flex gap-2">
-        {activeTab === "to-me" ? (
+        {userRole === "organizer" ? (
           <Button
             size="sm"
             onClick={() => handleGrantAccess(request)}
@@ -265,10 +302,76 @@ export default function AccessRequestsPage() {
     </Card>
   )
 
+  const renderTenderRequestCard = (request: TenderRequest) => (
+    <Card key={`${request.receiver}-${request.tenderId}`} className="hover:shadow-lg transition-shadow">
+      <CardHeader>
+        <div className="flex items-center space-x-2">
+          <Building2 className="h-5 w-5 text-green-500" />
+          <CardTitle className="text-lg line-clamp-1">Tender Access Request</CardTitle>
+        </div>
+        <CardDescription className="line-clamp-2">
+          Request to access tender participants.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="flex items-center text-sm">
+            <span className="font-medium">Tender ID:</span>
+            <span className="ml-2 font-medium truncate" title={request.tenderId}>
+              {request.tenderId}
+            </span>
+          </div>
+          <div className="flex items-center text-sm">
+            <span className="font-medium">Name:</span>
+            <span className="ml-2 font-medium truncate" title={request.tenderName}>
+              {shortenAddress(request.tenderName)}
+            </span>
+          </div>
+          <div className="flex items-center text-sm">
+            <span className="font-medium">Start Date:</span>
+            <span className="ml-2 font-medium truncate" title={request.tenderStartDate}>
+              {formatDate(request.tenderStartDate)}
+            </span>
+          </div>
+          <div className="flex items-center text-sm">
+            <span className="font-medium">End Date:</span>
+            <span className="ml-2 font-medium truncate" title={request.tenderEndDate}>
+              {formatDate(request.tenderEndDate)}
+            </span>
+          </div>
+          <div className="flex items-center text-sm">
+            <span className="font-medium">Receiver:</span>
+            <span className="ml-2 font-mono" title={request.receiver}>
+              {shortenAddress(request.receiver)}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="flex gap-2">
+        {userRole === "organizer" ? (
+          <Button
+            size="sm"
+            onClick={() => handleGrantTenderAccess(request)}
+            className="flex-1"
+          >
+            Grant Access
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => handleCheckTenderAccess(request.tenderId)}
+            className="flex-1"
+          >
+            Check Access
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
+  )
+
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
-        <SearchHeader title="Access Requests" placeholder="file names" />
         <div className="p-6">
           <div className="text-center mb-6">Loading...</div>
         </div>
@@ -289,34 +392,32 @@ export default function AccessRequestsPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <SearchHeader title="Access Requests" onSearch={handleSearch} placeholder="file names" />
-
       <div className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full mb-6">
-            <TabsTrigger value="to-me" className="flex-1">Requests to Me</TabsTrigger>
-            <TabsTrigger value="my-requests" className="flex-1">My Requests</TabsTrigger>
+            <TabsTrigger value="tender-requests" className="flex-1">Tender Requests</TabsTrigger>
+            <TabsTrigger value="content-requests" className="flex-1">Content Requests</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="to-me" className="space-y-6">
+          <TabsContent value="tender-requests" className="space-y-6">
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {paginatedRequests.map(renderRequestCard)}
+              {currentTenderRequests.map(renderTenderRequestCard)}
             </div>
 
-            {paginatedRequests.length === 0 && (
+            {currentTenderRequests.length === 0 && (
               <div className="text-center py-8">
-                <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium text-muted-foreground mb-2">
-                  No requests to you found
+                  No tender requests found
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  There are no access requests made to you.
+                  There are no tender access requests made to you.
                 </p>
               </div>
             )}
           </TabsContent>
 
-          <TabsContent value="my-requests" className="space-y-6">
+          <TabsContent value="content-requests" className="space-y-6">
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {paginatedRequests.map(renderRequestCard)}
             </div>
@@ -325,10 +426,10 @@ export default function AccessRequestsPage() {
               <div className="text-center py-8">
                 <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium text-muted-foreground mb-2">
-                  No requests found
+                  No content requests found
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  You haven't made any access requests yet.
+                  There are no content access requests.
                 </p>
               </div>
             )}

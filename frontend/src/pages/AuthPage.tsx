@@ -35,7 +35,8 @@ const AuthPage: React.FC = () => {
       const email = await contract.getEmail(address);
       const name = await contract.getName(address);
       const role = await contract.getRole(address); 
-      localStorage.setItem("user", JSON.stringify({ address, name: name, email: email, role: role }));
+      localStorage.setItem("user", JSON.stringify({ address, name: name, email: email, role: role}));
+      localStorage.setItem("tender_app_address", address);
       
       navigate("/tenders/search");
   };

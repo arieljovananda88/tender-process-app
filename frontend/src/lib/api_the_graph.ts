@@ -161,7 +161,7 @@ export async function getTenders(search: string = "", page: number = 0, pageSize
         }
       }
     )
-    return response.data.data.emitKeys[0];
+    return response.data.data.emitContentKeys[0];
   }
 
 export async function getParticipants(id: string): Promise<ParticipantResponse[]> {
@@ -197,7 +197,7 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
         }
       }
     )
-    return response.data.data.requestAccesses;
+    return response.data.data.requestAccessContents;
   }
   
   export async function getAccessRequestsLength(search: string = "", requester: string = ""): Promise<number> {
@@ -215,7 +215,7 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
         }
       }
     )
-    return response.data.data.requestAccesses.length;
+    return response.data.data.requestAccessContents.length;
   }
   
   export async function getAccessRequestsToMe(search: string = "", page: number = 0, pageSize: number = 10, receiver: string = ""): Promise<AccessRequest[]> {
@@ -233,7 +233,7 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
         }
       }
     )
-    return response.data.data.requestAccesses;
+    return response.data.data.requestAccessContents;
   }
   
   export async function getAccessRequestsToMeLength(search: string = "", receiver: string = ""): Promise<number> {
@@ -251,7 +251,7 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
         }
       }
     )
-    return response.data.data.requestAccesses.length;
+    return response.data.data.requestAccessContents.length;
   }
 
   export async function getDocumentsOfTenderContestant(address: string): Promise<any> {
@@ -292,11 +292,11 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
     
   }
 
-  export async function getTenderKey(address: string): Promise<any> {
+  export async function getTenderKeyOfASender(address: string, sender: string): Promise<any> {
     const response = await axios.post(
       import.meta.env.VITE_THE_GRAPH_ACCESS_MANAGER_API,
       {
-        query: createTenderKeyOfTenderContestantQuery(address),
+        query: createTenderKeyQuery(address, sender),
         operationName: 'Subgraphs',
         variables: {}
       },
@@ -309,6 +309,98 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
     )
     return response.data.data.emitTenderKeys;
     
+  }
+
+  export async function getTenderKey(address: string): Promise<any> {
+    const response = await axios.post(
+      import.meta.env.VITE_THE_GRAPH_ACCESS_MANAGER_API,
+      {
+        query: createTenderKeyQuery(address, ""),
+        operationName: 'Subgraphs',
+        variables: {}
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+        }
+      }
+    )
+    return response.data.data.emitTenderKeys;
+    
+  }
+
+  export async function getTenderAccessRequestsToMe(receiver: string, page: number = 0, pageSize: number = 8): Promise<any> {
+    const response = await axios.post(
+      import.meta.env.VITE_THE_GRAPH_ACCESS_MANAGER_API,
+      {
+        query: createTenderAccessRequestsToMe(receiver, page, pageSize),
+        operationName: 'Subgraphs',
+        variables: {}
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+        }
+      }
+    )
+    return response.data.data.requestAccessTenders;
+  }
+
+  export async function getTenderAccessRequestsByMe(requester: string, page: number = 0, pageSize: number = 8): Promise<any> {
+    const response = await axios.post(
+      import.meta.env.VITE_THE_GRAPH_ACCESS_MANAGER_API,
+      {
+        query: createTenderAccessRequestsByMe(requester, page, pageSize),
+        operationName: 'Subgraphs',
+        variables: {}
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+        }
+      } 
+    )
+    return response.data.data.requestAccessTenders;
+  }
+
+  export async function getTenderAccessRequestsToMeLength(receiver: string): Promise<any> {
+
+    const response = await axios.post(
+        import.meta.env.VITE_THE_GRAPH_ACCESS_MANAGER_API,
+        {
+          query: createTenderAccessRequestsToMeLength(receiver),
+          operationName: 'Subgraphs',
+          variables: {}
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+          }
+        } 
+      )
+    return response.data.data.requestAccessTenders.length;
+  }
+
+  export async function getTenderAccessRequestsByMeLength(requester: string): Promise<any> {
+    const response = await axios.post(
+      import.meta.env.VITE_THE_GRAPH_ACCESS_MANAGER_API,
+      {
+        query: createTenderAccessRequestsByMeLength(requester),
+        operationName: 'Subgraphs',
+        variables: {}
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+        }
+      }
+    )
+    return response.data.data.requestAccessTenders.length;
   }
 
   const createDocumentByCidsQuery = (cids: string[]) => {
@@ -334,10 +426,16 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
     `
   }
 
-  const createTenderKeyOfTenderContestantQuery = (contestant: string) => {
+  const createTenderKeyQuery = (contestant: string, sender: string) => {
+    let condition = ""
+    if (sender) {
+      condition = `where: {receiver: "${contestant}", sender: "${sender}"}`
+    } else {
+      condition = `where: {receiver: "${contestant}"}`
+    }
     return `
       query Subgraphs {
-       emitTenderKeys(where: {receiver: "${contestant}"}) {
+       emitTenderKeys(${condition}) {
             id
             receiver
             sender
@@ -345,6 +443,61 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
             cid
             tenderId
             iv
+        }
+      }
+    `
+  }
+
+  const createTenderAccessRequestsByMeLength = (requester: string) => {
+    return `
+      query Subgraphs {
+        requestAccessTenders(where: {requester: "${requester}"}) {
+            id
+      }
+    }
+
+    `
+  }
+
+  const createTenderAccessRequestsToMe = (receiver: string, page: number = 0, pageSize: number = 8) => {
+    const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+    return `
+      query Subgraphs {
+        requestAccessTenders(${pagination}, where: {receiver: "${receiver}"}) {
+            id
+            receiver
+            requester
+            tenderEndDate
+            tenderId
+            tenderName
+            tenderStartDate
+        }
+      }
+    `
+  }
+
+  const createTenderAccessRequestsToMeLength = (receiver: string) => {
+    return `
+      query Subgraphs {
+        requestAccessTenders(where: {receiver: "${receiver}"}) {
+            id
+        }
+      }
+    `
+  }
+
+  const createTenderAccessRequestsByMe = (requester: string, page: number = 0, pageSize: number = 8) => {
+    const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
+    return `
+      query Subgraphs {
+        requestAccessTenders(${pagination}, where: {requester: "${requester}"}) {
+            id
+            receiver
+            requester
+            tenderEndDate
+            tenderId
+            tenderName
+            tenderStartDate
         }
       }
     `
@@ -488,7 +641,7 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
   const createKeyQuery = (address: string, cid: string) => {
     return `
       query Subgraphs {
-        emitKeys(where: {receiver: "${address}", cid: "${cid}"}) {
+        emitContentKeys(where: {receiver: "${address}", cid: "${cid}"}) {
           encryptedKey
           iv
         }
@@ -507,14 +660,11 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
     const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
     return `
       query Subgraphs {
-        requestAccesses(${pagination}, ${condition}) {
+        requestAccessContents(${pagination}, ${condition}) {
           id
           requester
           receiver
           cid
-          documentName
-          documentFormat
-          tenderId
           blockTimestamp
         }
       }
@@ -532,15 +682,8 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
   
     return `
       query Subgraphs {
-        requestAccesses(${condition}) {
+        requestAccessContents(${condition}) {
           id
-          requester
-          receiver
-          cid
-          documentName
-          documentFormat
-          tenderId
-          blockTimestamp
         }
       }
     `;
@@ -557,14 +700,11 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
     const pagination = `first: ${pageSize}, skip: ${page * pageSize}`
     return `
       query Subgraphs {
-        requestAccesses(${pagination}, ${condition}) {
+        requestAccessContents(${pagination}, ${condition}) {
           id
           requester
           receiver
           cid
-          documentName
-          documentFormat
-          tenderId
           blockTimestamp
         }
       }
@@ -582,15 +722,8 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
   
     return `
       query Subgraphs {
-        requestAccesses(${condition}) {
+        requestAccessContents(${condition}) {
           id
-          requester
-          receiver
-          cid
-          documentName
-          documentFormat
-          tenderId
-          blockTimestamp
         }
       }
     `;

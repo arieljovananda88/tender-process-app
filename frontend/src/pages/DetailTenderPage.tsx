@@ -6,12 +6,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, User, Clock, ArrowLeft, Trophy } from "lucide-react"
 import { ParticipantsList } from "@/components/ParticipantsList"
 import { DocumentList } from "@/components/DocumentList"
+import { RequestTenderAccess } from "@/components/RequestTenderAccess"
 import { getTenderById } from "@/lib/api_the_graph" 
 import { Document, Tender } from "@/lib/types"
-import { formatDate, shortenAddress, calculateTimeRemaining, showPassphraseDialog } from "@/lib/utils"
+import { formatDate, calculateTimeRemaining, showPassphraseDialog } from "@/lib/utils"
 import { useAccount } from "wagmi";
 import { useTenderManager } from '@/hooks/useContracts';
-import { getDocumentStoreContract } from "@/lib/contracts"
+import { getDocumentStoreContract, getTenderManagerContract } from "@/lib/contracts"
 
 export default function TenderDetailPage() {
   const { id } = useParams()
@@ -29,13 +30,8 @@ export default function TenderDetailPage() {
   const isOwner = address?.toLowerCase() === tender?.owner.toLowerCase()
   const isWinner = address?.toLowerCase() === winnerAddress?.toLowerCase()
   const isActive = tender ? new Date(Number(tender.endDate) * 1000).getTime() > Date.now() : false
-
-  // export type Document = {
-  //   documentCid: string;
-  //   documentName: string;
-  //   documentFormat: string;
-  //   submissionDate: string;
-  // };
+  const [isThirdParty, setIsThirdParty] = useState(false);
+  const userRole = JSON.parse(localStorage.getItem("user") || '{}').role;
 
   useEffect(() => {
     const fetchTender = async () => {
@@ -43,7 +39,9 @@ export default function TenderDetailPage() {
         const tender = await getTenderById(id as string)
         setTender(tender)
         const winner = await getWinner(id as string)
-        setWinnerAddress(winner)
+        if (winner && winner !== "0x0000000000000000000000000000000000000000") {
+          setWinnerAddress(winner)
+        }
         const contract = await getDocumentStoreContract();
         const infoDocs = await contract.getTenderInfoDocuments(id as string)
         setInfoDocuments(infoDocs)
@@ -60,13 +58,24 @@ export default function TenderDetailPage() {
         return [];
       }
       setParticipantLoading(true);
-      const result = await parseParticipants(id as string, address as string, passphrase, id as string);
+      const contract = await getTenderManagerContract();
+      const participants = await contract.getParticipants(id as string);
+      if (participants.length > 0) {
+        const participantsList = participants.map((participant: any) => ({
+          address: participant.participantAddress,
+          name: participant.name,
+        }));
+        setParticipantLoading(false);
+        setParticipants(participantsList);
+        return
+      }
+  
+      const result = await parseParticipants(address as string, passphrase, id as string);
       const user = localStorage.getItem("user")
       const userData = user ? JSON.parse(user) : null
 
       if (result) {
         if (userData.role === "participant") {
-          console.log(result.filtered)
           const tenderDocuments = result.filtered.map((doc: Document) => ({
             documentCid: doc.documentCid,
             documentName: doc.documentName,
@@ -79,10 +88,17 @@ export default function TenderDetailPage() {
         setParticipants(result.participants);
         setIsRegistered(result.participantsMap.has(address?.toLowerCase() as string));
       }
+    
       setParticipantLoading(false);
     }
 
+    const checkThirdParty = async () => {
+      const contract = await getTenderManagerContract();
+      const isThirdParty = await contract.isThirdPartyParticipant(id as string, address as string);
+      setIsThirdParty(isThirdParty);
+    }
 
+    checkThirdParty();
     fetchTender()
     fetchParticipants();
   }, [id])
@@ -118,7 +134,7 @@ export default function TenderDetailPage() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
 
         {/* Main content - center */}
-        <div className={`space-y-6 xl:col-span-9`}>
+        <div className={`space-y-6 xl:col-span-8`}>
           <div className="flex justify-between items-start">
             <h1 className="text-2xl font-bold">{tender.name}</h1>
             <Badge className={isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
@@ -128,7 +144,7 @@ export default function TenderDetailPage() {
 
           <div className="flex items-center text-sm text-muted-foreground">
             <User className="mr-1 h-4 w-4" />
-            <span title={tender.owner}>Owner: {isOwner ? "You" : shortenAddress(tender.owner)}</span>
+            <span title={tender.owner}>Owner: {isOwner ? "You" : tender.owner}</span>
           </div>
 
           <div className="flex items-center justify-between">
@@ -167,13 +183,19 @@ export default function TenderDetailPage() {
         </div>
 
         {/* Right sidebar - Participants (for owners) or Application status (for non-owners) */}
-        <div className="xl:col-span-3 space-y-6">
-          {isOwner ? (
+        <div className="xl:col-span-4 space-y-6">
+          {isOwner || userRole === "third_party" ? (
             // Participants section for tender owner
             <div>
               <h2 className="text-lg font-semibold mb-4">Participants</h2>
               {participantLoading ? (
                 <div className="text-center text-muted-foreground py-4">Loading participants...</div>
+              ) : userRole === "third_party" && !isThirdParty ? (
+                <RequestTenderAccess
+                  tenderId={id as string}
+                  tenderOwner={tender?.owner || ""}
+                  tenderName={tender?.name || ""}
+                />
               ) : (
                 <ParticipantsList
                   forPending={false}
@@ -191,6 +213,7 @@ export default function TenderDetailPage() {
                 <CardContent className="p-4">
                   <h2 className="text-lg font-semibold mb-3">Application Status</h2>
                   {isWinner ? (
+                    <>
                     <div className="bg-yellow-50 text-yellow-800 p-3 rounded-md">
                       <div className="flex items-center gap-2 mb-2">
                         <Trophy className="h-4 w-4" />
@@ -200,6 +223,7 @@ export default function TenderDetailPage() {
                         Congratulations! You have been selected as the winner of this tender.
                       </p>
                     </div>
+                    </>
                   ) : isActive ? (
                     <>
                         {isRegistered ? (
@@ -227,18 +251,30 @@ export default function TenderDetailPage() {
                 </CardContent>
               </Card>
 
-                <div className="space-y-4">
-                  <h2 className="text-lg font-semibold mb-2">Your Bid Documents</h2>
-                  <DocumentList
-                    typeOfFile="Tender"
-                    documents={tenderDocuments}
-                    isRegistered={isRegistered}
-                    isActive={isActive}
-                    iconSize={8}
-                    textSize="sm"
-                    canUpload={true}
+                {!winnerAddress ? (
+                  <div className="space-y-4">
+                    <h2 className="text-lg font-semibold mb-2">Your Bid Documents</h2>
+                    <DocumentList
+                      typeOfFile="Tender"
+                      documents={tenderDocuments}
+                      isRegistered={isRegistered}
+                      isActive={isActive}
+                      iconSize={8}
+                      textSize="sm"
+                      canUpload={true}
+                    />
+                  </div>
+                ) : (
+                  <>
+                  <h2 className="text-lg font-semibold mb-3">Final Participants</h2>
+                  <ParticipantsList
+                    forPending={false}
+                    participants={participants}
+                    winnerId={winnerAddress}
+                    tenderId={id as string}
                   />
-                </div>
+                  </>
+                )}
             </>
           )}
         </div>

@@ -15,11 +15,20 @@ contract TenderManager {
         address winner;
     }
 
+    struct Participant {
+        address participantAddress;
+        string name;
+    }
+
     mapping(string => Tender) public tenders;
-    mapping(string => address[]) public thirdPartyParticipants;
+    mapping(string => mapping(address => bool)) public thirdPartyParticipants;
+
+    mapping(string => address[]) private thirdPartyParticipantsArray;
+    mapping(string => Participant[]) public participants;
 
     event TenderCreated(string tenderId, address owner, string name, uint256 startDate, uint256 endDate);
     event WinnerSelected(string tenderId, address winner, string reason, uint256 timestamp);
+    event ThirdPartyParticipantAdded(string tenderId, string tenderName, uint256 tenderStartDate, uint256 tenderEndDate, address thirdParty);
 
     constructor(address publicKeyStorageAddress) {
         publicKeyStorage = IPublicKeyStorage(publicKeyStorageAddress);
@@ -48,7 +57,7 @@ contract TenderManager {
         emit TenderCreated(tenderId, msg.sender, name, startDate, endDate);
     }
 
-    function selectWinner(string memory tenderId, address winner, string memory reason) external {
+    function selectWinner(string memory tenderId, address winner, string memory reason, Participant[] memory participantsList) external {
         Tender storage tender = tenders[tenderId];
 
         require(msg.sender == tender.owner, "Only owner can select winner");
@@ -57,13 +66,25 @@ contract TenderManager {
         require(tender.winner == address(0), "Winner already selected");
 
         tender.winner = winner;
+
+        for (uint256 i = 0; i < participantsList.length; i++) {
+            participants[tenderId].push(participantsList[i]);
+        }
+
         emit WinnerSelected(tenderId, winner, reason, block.timestamp);
     }
 
     function addThirdPartyParticipant(string memory tenderId, address thirdParty) external {
         Tender storage tender = tenders[tenderId];
         require(msg.sender == tender.owner, "Only owner can add third party participant");
-        thirdPartyParticipants[tenderId].push(thirdParty);
+        
+        // Check if already exists
+        require(!thirdPartyParticipants[tenderId][thirdParty], "Third party already added");
+        
+        thirdPartyParticipants[tenderId][thirdParty] = true;
+        thirdPartyParticipantsArray[tenderId].push(thirdParty);
+        
+        emit ThirdPartyParticipantAdded(tenderId, tenders[tenderId].name, tenders[tenderId].startDate, tenders[tenderId].endDate, thirdParty);
     }
 
     function getWinner(string memory tenderId) external view returns (address) {
@@ -72,5 +93,17 @@ contract TenderManager {
 
     function getOwner(string memory tenderId) external view returns (address) {
         return tenders[tenderId].owner;
+    }
+
+    function getParticipants(string memory tenderId) external view returns (Participant[] memory) {
+        return participants[tenderId];
+    }
+
+    function isThirdPartyParticipant(string memory tenderId, address thirdParty) external view returns (bool) {
+        return thirdPartyParticipants[tenderId][thirdParty];
+    }
+
+    function getThirdPartyParticipantsArray(string memory tenderId) external view returns (address[] memory) {
+        return thirdPartyParticipantsArray[tenderId];
     }
 }

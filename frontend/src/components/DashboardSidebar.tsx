@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { Building2, ChevronDown, ClipboardList, FileSearch, Package, Search, KeyRound, ScanEye} from "lucide-react"
 
 import {
@@ -42,7 +42,8 @@ export function DashboardSidebar() {
   const [reimportLoading, setReimportLoading] = React.useState(false);
   const [reimportFileName, setReimportFileName] = React.useState('');
   const { address } = useAccount();
-
+  const navigate = useNavigate();
+  
   const handleReimportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -79,6 +80,33 @@ export function DashboardSidebar() {
 
   useEffect(() => {
     checkUserRole();
+  }, [address]);
+
+    // Check if address changed and clear localStorage if needed
+  useEffect(() => {
+    const checkAddressChange = async () => {
+      const storedAddress = localStorage.getItem('tender_app_address');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      if (address && storedAddress && storedAddress !== address) {
+        // Address changed, clear session data
+        localStorage.removeItem('tender_app_passphrase');
+        localStorage.removeItem('user');
+        localStorage.setItem('tender_app_address', address);
+        console.log('Address changed, cleared session data');
+        navigate('/auth');
+      } else if (address && user.address && user.address !== address) {
+        // User object address doesn't match current address
+        localStorage.removeItem('tender_app_passphrase');
+        localStorage.removeItem('user');
+        console.log('User address mismatch, logging out');
+        navigate('/auth');
+      } else if (address && !storedAddress) {
+        // First time connecting, store the address
+        localStorage.setItem('tender_app_address', address);
+      }
+    };
+    checkAddressChange();
   }, [address]);
 
   const handleSaveReimportedKey = async () => {
@@ -141,8 +169,8 @@ export function DashboardSidebar() {
         <SidebarMenu>
           {!isLoadingRole && (
             <>
-              {/* Show Tenders section only for non-organizers */}
-              {userRole !== 'organizer' && (
+              {/* Show Tenders section for participants and third parties */}
+              {(userRole === 'participant' || userRole === 'third_party') && (
                 <Collapsible open={tendersOpen} onOpenChange={setTendersOpen} className="group/collapsible">
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
@@ -162,14 +190,16 @@ export function DashboardSidebar() {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/tenders/registered")}>
-                            <Link to="/tenders/registered">
-                              <FileSearch className="size-4" />
-                              <span>Registered Tenders</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                        {userRole === 'participant' && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/tenders/registered")}>
+                              <Link to="/tenders/registered">
+                                <FileSearch className="size-4" />
+                                <span>Registered Tenders</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>
@@ -189,7 +219,7 @@ export function DashboardSidebar() {
               )}
 
               {/* Show Access Requests for organizers */}
-              {userRole === 'organizer' && (
+              {userRole !== 'participant' && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/access-requests")}>
                     <Link to="/access-requests">

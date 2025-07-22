@@ -1,6 +1,8 @@
 import { encryptWithPublicKey, initIPFSClient, uploadToIPFSClientEncrypted, generateTenderId, encryptDocumentMetadata } from './utils';
 import { getPublicKeyStorageContract, getTenderManagerContract, getAccessManagerContract, getDocumentStoreContract } from './contracts';
-import { CreateTenderResponse, AddParticipantResponse, UploadDocumentResponse, SelectWinnerResponse, RequestAccessResponse, RegisterResponse, UploadInfoDocumentParams, UploadDocumentParams } from './types';
+import { CreateTenderResponse, UploadDocumentResponse, SelectWinnerResponse, RequestAccessResponse, RegisterResponse, UploadInfoDocumentParams, UploadDocumentParams, SelectWinnerParticipant } from './types';
+import { getTenderKey } from './api_the_graph';
+import { decryptTenderKey } from './utils';
 
 export async function createTender( 
   name: string,
@@ -79,34 +81,6 @@ export async function checkIsRegistered(address: string): Promise<boolean> {
   }
 }
 
-export async function addParticipant(
-  tenderId: string,
-  participant: string,
-  participantName: string,
-  participantEmail: string,
-): Promise<AddParticipantResponse> {
-  try {
-    const contract = await getTenderManagerContract();
-
-    const tx = await contract.addParticipant(
-      tenderId,
-      participant,
-      participantName,
-      participantEmail,
-    );
-
-    await tx.wait();
-
-    return {
-      success: true,
-      message: "Participant added successfully"
-    };
-  } catch (error: any) {
-    console.error("Add participant error:", error);
-    throw new Error(`Failed to add participant: ${error.message}`);
-  }
-}
-
 export async function uploadDocument(params: UploadDocumentParams): Promise<UploadDocumentResponse> {
   if (!params.tenderId || !params.documentName || !params.documentType || !params.participantName || !params.participantEmail || !params.documentFormat) {
     throw new Error("Missing required fields");
@@ -114,13 +88,16 @@ export async function uploadDocument(params: UploadDocumentParams): Promise<Uplo
 
   try {
     const tenderManagerContract = await getTenderManagerContract();
+    const publicKeyStorageContract = await getPublicKeyStorageContract();
+    const documentContract = await getDocumentStoreContract();
+    const accessManagerContract = await getAccessManagerContract();
+
     const tenderOwner = await tenderManagerContract.getOwner(params.tenderId);
 
     // Upload and encrypt file to IPFS
     const { cid, key, iv } = await uploadToIPFSClientEncrypted(params.document);
 
     // Upload document with signature to smart contract
-    const documentContract = await getDocumentStoreContract();
     const encryptedDocumentMetadata = await encryptDocumentMetadata(params.tenderId, params.documentName, params.documentType, params.documentFormat, params.participantName, params.participantEmail);
 
           // encrypt document with public key of receiver
@@ -139,8 +116,6 @@ export async function uploadDocument(params: UploadDocumentParams): Promise<Uplo
     const uploadDocumentTx = await documentContract.uploadDocument(uploadInput);
     await uploadDocumentTx.wait()
 
-    const publicKeyStorageContract = await getPublicKeyStorageContract();
-
     const ownerPublicKeyInContract = await publicKeyStorageContract.getPublicKey(tenderOwner);
     const participantPublicKeyInContract = await publicKeyStorageContract.getPublicKey(params.signer);
 
@@ -157,9 +132,28 @@ export async function uploadDocument(params: UploadDocumentParams): Promise<Uplo
     const participantEncryptedTenderKey = await encryptWithPublicKey(encryptedDocumentMetadata.keyString, participantJwk)
 
 
-    const keyManagerContract = await getAccessManagerContract();
+    const thirdPartyParticipants = await tenderManagerContract.getThirdPartyParticipantsArray(params.tenderId);
 
-    const emitKeyOwnerTx = await keyManagerContract.emitCombinedKeys(
+    const tenderKeysForThirdPartyParticipants = []
+
+    for (const thirdPartyParticipant of thirdPartyParticipants) {
+      const thirdPartyPublicKey =  await publicKeyStorageContract.getPublicKey(thirdPartyParticipant); 
+      const thirdPartyJwk = JSON.parse(thirdPartyPublicKey);
+      const thirdPartyEncryptedTenderKey = await encryptWithPublicKey(encryptedDocumentMetadata.keyString, thirdPartyJwk)
+
+      tenderKeysForThirdPartyParticipants.push(
+        {
+          receiver: thirdPartyParticipant,
+          encryptedKey: thirdPartyEncryptedTenderKey,
+          iv: encryptedDocumentMetadata.iv,
+          cid,
+          tenderId: encryptedDocumentMetadata.encryptedTenderId,
+        }
+      )
+    }
+
+
+    const emitKeys = [
       {
         contentKey: {
           receiver: tenderOwner,
@@ -174,28 +168,30 @@ export async function uploadDocument(params: UploadDocumentParams): Promise<Uplo
           cid,
           tenderId: encryptedDocumentMetadata.encryptedTenderId,
         }
-      }
-    );
-
-    await emitKeyOwnerTx.wait();
-
-    const emitKeySignerTx = await keyManagerContract.emitCombinedKeys(
-    {
-      contentKey: {
-      receiver: params.signer,
-      encryptedKey: participantEncryptedContentKey,
-      iv,
-      cid,
-    },
-    tenderKey: {
-      receiver: params.signer,
-      encryptedKey: participantEncryptedTenderKey,
-      iv: encryptedDocumentMetadata.iv,
-      cid,
-      tenderId: encryptedDocumentMetadata.encryptedTenderId,
+      }, {
+        contentKey: {
+          receiver: params.signer,
+          encryptedKey: participantEncryptedContentKey,
+          iv,
+          cid,
+        },
+        tenderKey: {
+          receiver: params.signer,
+          encryptedKey: participantEncryptedTenderKey,
+          iv: encryptedDocumentMetadata.iv,
+          cid,
+          tenderId: encryptedDocumentMetadata.encryptedTenderId,
+        }
     }
-  });
-    await emitKeySignerTx.wait();;
+    ]
+
+    const emitKeysTx = await accessManagerContract.emitCombinedKeys(emitKeys);
+    await emitKeysTx.wait();
+
+    if (thirdPartyParticipants.length > 0) {
+      const emitKeysTxForThirdPartyParticipants = await accessManagerContract.emitTenderKey(tenderKeysForThirdPartyParticipants);
+      await emitKeysTxForThirdPartyParticipants.wait();
+    }
 
     return {
       success: true,
@@ -224,6 +220,7 @@ export async function uploadInfoDocument(params: UploadInfoDocumentParams): Prom
       documentCid: cid,
       documentName: params.documentName,
       documentFormat: params.documentFormat,
+      submissionDate: new Date().getDate(),
     };
 
     const uploadDocumentTx = await contract.uploadInfoDocument(uploadInput);
@@ -239,15 +236,17 @@ export async function uploadInfoDocument(params: UploadInfoDocumentParams): Prom
   }
 }
 
-export async function selectWinner(tenderId: string, winner: string, reason: string): Promise<SelectWinnerResponse> {
+export async function selectWinner(tenderId: string, winner: string, reason: string, particpantList: SelectWinnerParticipant[]): Promise<SelectWinnerResponse> {
   try {
     const contract = await getTenderManagerContract();
+  
 
     // Call the smart contract
     const tx = await contract.selectWinner(
       tenderId,
       winner,
       reason,
+      particpantList
     );
 
     // Wait for transaction to be mined
@@ -263,11 +262,11 @@ export async function selectWinner(tenderId: string, winner: string, reason: str
   }
 }
 
-export async function grantAccess(receiver: string, tenderId: string, cid: string, documentName: string, encryptedKey: string, iv: string): Promise<RequestAccessResponse> {
+export async function grantAccess(receiver: string, cid: string, encryptedKey: string, iv: string): Promise<RequestAccessResponse> {
   try {
     const contract = await getAccessManagerContract();
 
-    if (!receiver || !cid || !tenderId || !documentName || !encryptedKey || !iv) {
+    if (!receiver || !cid || !encryptedKey || !iv) {
       throw new Error("Missing required fields");
     }
   
@@ -275,9 +274,8 @@ export async function grantAccess(receiver: string, tenderId: string, cid: strin
       receiver: receiver,
       encryptedKey: encryptedKey,
       iv,
-      cid,
-      tenderId,
-      documentName});
+      cid
+    });
     await emitKeyTx.wait();
 
 
@@ -301,10 +299,7 @@ export async function requestAccess(receiver: string, tenderId: string, cid: str
   
     const requestAccessTx = await contract.requestAccessContent({
       receiver,
-      tenderId,
-      cid,
-      documentName,
-      documentFormat});
+      cid,});
     await requestAccessTx.wait();
   
 
@@ -316,5 +311,34 @@ export async function requestAccess(receiver: string, tenderId: string, cid: str
   } catch (error: any) {
     console.error("Request access error:", error);
     throw new Error(`Failed to request access: ${error.message}`);
+  }
+}
+
+export async function grantTenderAccess(expectedTenderId: string, receiver: string, passphrase: string, tenderOwner: string, ): Promise<RequestAccessResponse> {
+  try {
+    const accessManagerContract = await getAccessManagerContract();
+    const tenderManagerContract = await getTenderManagerContract();
+
+    const publicKeyStorageContract = await getPublicKeyStorageContract();
+    const receiverPublicKeyInContract = await publicKeyStorageContract.getPublicKey(receiver);
+    const receiverJwk = JSON.parse(receiverPublicKeyInContract);
+
+    const response = await getTenderKey(tenderOwner);
+
+    const tenderKeys = await decryptTenderKey(response, tenderOwner, passphrase, expectedTenderId, receiver, receiverJwk);
+
+    const addThirdPartyParticipantTx = await tenderManagerContract.addThirdPartyParticipant(expectedTenderId, receiver);
+    await addThirdPartyParticipantTx.wait();
+
+    const grantTenderAccessTx = await accessManagerContract.emitTenderKey(tenderKeys);
+    await grantTenderAccessTx.wait();
+
+    return {
+      success: true,
+      message: "Tender access granted successfully"
+    };
+  } catch (error: any) {
+    console.error("Grant tender access error:", error);
+    throw new Error(`Failed to grant tender access: ${error.message}`);
   }
 }

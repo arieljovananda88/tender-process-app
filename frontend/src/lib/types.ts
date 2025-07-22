@@ -5,6 +5,17 @@ export type Document = {
     submissionDate: string;
   };
 
+  export interface Participant {
+    address: string
+    name: string
+    email: string
+  }
+
+  export interface SelectWinnerParticipant {
+    participantAddress: string
+    name: string
+  }
+
   export interface Tender {
     tenderId: string;
     owner: string;

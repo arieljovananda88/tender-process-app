@@ -5,12 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, User, FileText, File, FileImage, FileSpreadsheet, Loader2 } from "lucide-react"
 import { Link } from "react-router-dom"
-import { downloadEncryptedFileWithDialog, formatDate } from "@/lib/utils"
+import { downloadEncryptedFileWithDialog, formatDate, showPassphraseDialog } from "@/lib/utils"
 import { useDocumentStore, useTenderManager } from "@/hooks/useContracts"
 import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
 import { toast } from "react-toastify"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { requestAccess, selectWinner } from "@/lib/api_contract"
 import { getTenderById } from "@/lib/api_the_graph"
 import { Tender } from "@/lib/types"
@@ -23,6 +22,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { getTenderManagerContract } from "@/lib/contracts"
 
 interface Participant {
   address: string;
@@ -58,30 +58,54 @@ export default function ParticipantSubmissionsPage() {
   const tenderId = params.id as string
   const participantAddress = params.address as string
   const { fetchParticipantDocuments } = useDocumentStore()
-  const { isParticipant, getWinner } = useTenderManager()
+  const { getWinner, parseParticipants } = useTenderManager()
   const [isPending, setIsPending] = useState(false)
-  const [isRegistered, setIsRegistered] = useState(false)
   const [isWinner, setIsWinner] = useState(false)
   const [tender, setTender] = useState<Tender | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [documents, setDocuments] = useState<{ registrationDocuments: Document[], tenderDocuments: Document[] }>({
-    registrationDocuments: [],
-    tenderDocuments: []
-  });
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [isAddingParticipant, setIsAddingParticipant] = useState(false)
   const [isChoosingWinner, setIsChoosingWinner] = useState(false)
   const [showAccessModal, setShowAccessModal] = useState(false)
   const [failedDocument, setFailedDocument] = useState<Document | null>(null)
+  
 
   useEffect(() => {
     const loadData = async () => {
       if (tenderId && participantAddress) {
-        const docs = await fetchParticipantDocuments(tenderId, participantAddress);
-        if (docs) {
-          setDocuments(docs);
+        const passphrase = await showPassphraseDialog();
+        if (!passphrase) {
+          return;
         }
-        // const pending = await isPendingParticipant(tenderId, participantAddress);
-        const registered = await isParticipant(tenderId, participantAddress);
+        let documents: any[] | undefined = []
+        const user = JSON.parse(localStorage.getItem("user") || "{}")
+        if (user.role === "third_party") {
+          let documentsFromOwnerThirdParty: any[] | undefined = []
+          let documentsFromParticipantThirdParty: any[] | undefined = []
+
+          const contract = await getTenderManagerContract();
+          const tenderOwner = await contract.getOwner(tenderId)
+
+          documentsFromOwnerThirdParty = await fetchParticipantDocuments(tenderOwner as string, address as string, passphrase as string, tenderId);
+          documentsFromParticipantThirdParty = await fetchParticipantDocuments(participantAddress, address as string, passphrase as string, tenderId);
+
+          documentsFromOwnerThirdParty = documentsFromOwnerThirdParty?.filter((doc) => doc.documentOwner === participantAddress)
+          documentsFromParticipantThirdParty = documentsFromParticipantThirdParty?.filter((doc) => doc.documentOwner === participantAddress)
+
+          if (documentsFromOwnerThirdParty){
+            documents = [...documents, ...documentsFromOwnerThirdParty]
+          }
+          if (documentsFromParticipantThirdParty){
+            documents = [...documents, ...documentsFromParticipantThirdParty]
+          }
+        } else {
+          documents = await fetchParticipantDocuments(participantAddress, address as string, passphrase as string, tenderId);
+        }
+        
+        if (documents) {
+          setDocuments(documents);
+        }
+
         const winnerAddress = await getWinner(tenderId);
         setIsWinner(winnerAddress.toLowerCase() === participantAddress.toLowerCase())
         
@@ -92,8 +116,6 @@ export default function ParticipantSubmissionsPage() {
           name: participant.name,
           email: participant.email
         });
-        // setIsPending(pending); 
-        setIsRegistered(registered);
         // Fetch tender details
         const tenderData = await getTenderById(tenderId);
         setTender(tenderData);
@@ -114,7 +136,6 @@ export default function ParticipantSubmissionsPage() {
   useEffect(() => {
     const checkWinnerStatus = async () => {
       if (tender &&
-        isRegistered &&
         address?.toLowerCase() === tender.owner?.toLowerCase() &&
         !isWinner) {
         // Check if winnerAddress is empty string or null/undefined
@@ -130,7 +151,7 @@ export default function ParticipantSubmissionsPage() {
     };
     
     checkWinnerStatus();
-  }, [tender, isRegistered, address, isWinner])
+  }, [tender, address, isWinner])
 
 
   const handleDownload = async (doc: Document) => {
@@ -142,7 +163,7 @@ export default function ParticipantSubmissionsPage() {
   };
 
   const handleRequestAccess = async (doc: Document) => {    
-    const response = await requestAccess(participantAddress, tenderId, doc.documentCid, doc.documentName, doc.documentFormat)
+    const response = await requestAccess(tender?.owner as string, tenderId, doc.documentCid, doc.documentName, doc.documentFormat)
 
     if (response.success) {
       toast.success('Access request sent!')
@@ -174,8 +195,21 @@ export default function ParticipantSubmissionsPage() {
   const handleChooseWinner = async () => {
     try {
       setIsChoosingWinner(true);
+      const passphrase = await showPassphraseDialog();
+      if (!passphrase) {
+        return [];
+      }
+      const result = await parseParticipants(address as string, passphrase, tenderId);
+      if (!result){
+        return
+      }
 
-      const response = await selectWinner(tenderId, participantAddress, "Participant chosen as winner");
+      const participants = result.participants.map((participant) => ({
+        participantAddress: participant.address,
+        name: participant.name,
+      }))
+
+      const response = await selectWinner(tenderId, participantAddress, "Participant chosen as winner", participants);
       if (response.success) {
         toast.success('Participant chosen as winner!');
         setIsWinner(true);
@@ -325,25 +359,10 @@ export default function ParticipantSubmissionsPage() {
           </div>
         )}
 
-        {isPending ? (
-          <div className="space-y-6">
-            <h2 className="text-lg font-semibold">Registration Documents</h2>
-            {renderDocuments(documents.registrationDocuments)}
-          </div>
-        ) : (
-          <Tabs defaultValue="tender" className="w-full">
-            <TabsList className="w-full">
-              <TabsTrigger value="tender" className="flex-1">Tender Documents</TabsTrigger>
-              <TabsTrigger value="registration" className="flex-1">Registration Documents</TabsTrigger>
-            </TabsList>
-            <TabsContent value="registration" className="space-y-6 mt-6">
-              {renderDocuments(documents.registrationDocuments)}
-            </TabsContent>
-            <TabsContent value="tender" className="space-y-6 mt-6">
-              {renderDocuments(documents.tenderDocuments)}
-            </TabsContent>
-          </Tabs>
-        )}
+        <div className="space-y-6">
+            <h2 className="text-lg font-semibold">Bidding Documents</h2>
+            {renderDocuments(documents)}
+        </div>
       </div>
 
       {/* Request Access Modal */}

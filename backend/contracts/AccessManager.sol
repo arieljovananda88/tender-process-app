@@ -52,7 +52,10 @@ contract AccessManager {
     event RequestAccessTender(
         address requester,
         address receiver,
-        string tenderId
+        string tenderId,
+        string tenderName,
+        string tenderStartDate,
+        string tenderEndDate
     );
 
     struct EmitKeyInput {
@@ -70,7 +73,6 @@ contract AccessManager {
         string tenderId;
     }
     
-
     struct RequestAccessInput {
         address receiver;
         string cid;
@@ -133,27 +135,29 @@ contract AccessManager {
     }
 
     function emitCombinedKeys(
-        EmitCombinedKeyInput memory input
+        EmitCombinedKeyInput[] memory inputs
     ) external {
-        bool isDocumentOwner = documentStore.getDocumentOwner(input.contentKey.cid) == msg.sender;
-        bool isDocumentReceiver = documentStore.getDocumentReceiver(input.contentKey.cid) == msg.sender;
+        for (uint i = 0; i < inputs.length; i++) {
+            bool isDocumentOwner = documentStore.getDocumentOwner(inputs[i].contentKey.cid) == msg.sender;
+            bool isDocumentReceiver = documentStore.getDocumentReceiver(inputs[i].contentKey.cid) == msg.sender;
         
         if (!isDocumentOwner && !isDocumentReceiver) {
             revert(string(abi.encodePacked("Sender is not authorized to emit keys")));
         }
 
         // Emit content key
-        encryptedContentKeys[input.contentKey.cid][input.contentKey.receiver] = input.contentKey.encryptedKey;
-        contentIvs[input.contentKey.cid][input.contentKey.receiver] = input.contentKey.iv;
-        emit EmitContentKey(input.contentKey.receiver, msg.sender, input.contentKey.encryptedKey, input.contentKey.iv, input.contentKey.cid);
+        encryptedContentKeys[inputs[i].contentKey.cid][inputs[i].contentKey.receiver] = inputs[i].contentKey.encryptedKey;
+        contentIvs[inputs[i].contentKey.cid][inputs[i].contentKey.receiver] = inputs[i].contentKey.iv;
+        emit EmitContentKey(inputs[i].contentKey.receiver, msg.sender, inputs[i].contentKey.encryptedKey, inputs[i].contentKey.iv, inputs[i].contentKey.cid);
 
         // Emit tender key
-        encryptedTenderKeys[input.tenderKey.cid][input.tenderKey.receiver] = input.tenderKey.encryptedKey;
-        tenderIvs[input.tenderKey.cid][input.tenderKey.receiver] = input.tenderKey.iv;
-        emit EmitTenderKey(input.tenderKey.receiver, msg.sender, input.tenderKey.encryptedKey, input.tenderKey.iv, input.tenderKey.cid, input.tenderKey.tenderId);
+        encryptedTenderKeys[inputs[i].tenderKey.cid][inputs[i].tenderKey.receiver] = inputs[i].tenderKey.encryptedKey;
+        tenderIvs[inputs[i].tenderKey.cid][inputs[i].tenderKey.receiver] = inputs[i].tenderKey.iv;
+        emit EmitTenderKey(inputs[i].tenderKey.receiver, msg.sender, inputs[i].tenderKey.encryptedKey, inputs[i].tenderKey.iv, inputs[i].tenderKey.cid, inputs[i].tenderKey.tenderId);
+        }
     }
 
-    function requestAccessTender(string memory tenderId, address receiver) external {
+    function requestAccessTender(string memory tenderId, string memory tenderName, string memory tenderStartDate, string memory tenderEndDate, address receiver) external {
         if (keccak256(abi.encodePacked(publicKeyStorage.getRole(msg.sender))) != keccak256(abi.encodePacked("third_party"))) {
             revert(string(abi.encodePacked("Sender is not a third_party")));
         }
@@ -162,7 +166,7 @@ contract AccessManager {
 
         accessTenderRequests[tenderId][msg.sender] = true;
 
-        emit RequestAccessTender(msg.sender, receiver, tenderId);
+        emit RequestAccessTender(msg.sender, receiver, tenderId, tenderName, tenderStartDate, tenderEndDate);
     }
 
     function getEncryptedContentKey(string memory cid, address receiver) external view returns (string memory, string memory) {
