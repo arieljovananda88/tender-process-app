@@ -1,78 +1,14 @@
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
-import { ethers } from 'ethers';
-import TenderManagerArtifact from '../../../backend/artifacts/contracts/TenderManager.sol/TenderManager.json';
-import DocumentStoreArtifact from '../../../backend/artifacts/contracts/DocumentStore.sol/DocumentStore.json';
-import { getParticipants, getPendingParticipants, ParticipantResponse } from '../lib/api';
+import { getDocumentByCids, getTenderKey } from '../lib/api_the_graph';
 import { Document } from "@/lib/types"
+import { decryptDocumentMetadata, decryptSymmetricKey, decryptWithSymmetricKey} from '../lib/utils';
+import { getDocumentStoreContract, getTenderManagerContract } from '@/lib/contracts';
 
-interface Participant {
-    address: string
-    name: string
-    email: string
-  }
 
 export function useTenderManager() {
-  const { address } = useAccount();
-  const [isPending, setIsPending] = useState(false);
-  const [isRegistered, setIsRegistered] = useState(false);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [pendingParticipants, setPendingParticipants] = useState<Participant[]>([]);
-
-  const checkRegistrationStatus = async (tenderId: string) => {
-
-    try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const tenderManagerAddress = import.meta.env.VITE_TENDER_MANAGER_CONTRACT_ADDRESS;
-      const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
-
-      const resPending = await contract.isPendingParticipant(tenderId, address);
-      const resRegistered = await contract.isParticipant(tenderId, address);
-      const participantAddresses = await getParticipants(tenderId);
-      const pendingParticipants = await getPendingParticipants(tenderId);
-      
-      const formattedParticipants: Participant[] = participantAddresses.map((participant: ParticipantResponse) => ({
-        address: participant.participant,
-        name: participant.name, 
-        email: participant.email
-      }));
-      
-      const formattedPendingParticipants: Participant[] = pendingParticipants.map((participant: ParticipantResponse) => ({
-        address: participant.participant,
-        name: participant.name, 
-        email: participant.email
-      }));
-
-      setIsPending(resPending);
-      setIsRegistered(resRegistered);
-      setParticipants(formattedParticipants);
-      setPendingParticipants(formattedPendingParticipants);
-    } catch (error) {
-      console.error("Error checking registration status:", error);
-    }
-  };
-
-  const isPendingParticipant = async (tenderId: string, participantAddress: string) => {
-    try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const tenderManagerAddress = import.meta.env.VITE_TENDER_MANAGER_CONTRACT_ADDRESS;
-      const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
-
-      return await contract.isPendingParticipant(tenderId, participantAddress);
-    } catch (error) {
-      console.error("Error checking pending participant status:", error);
-      return false;
-    }
-  };
-
   const getWinner = async (tenderId: string) => {
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const tenderManagerAddress = import.meta.env.VITE_TENDER_MANAGER_CONTRACT_ADDRESS;    
-      const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
+      const contract = await getTenderManagerContract();
 
       return await contract.getWinner(tenderId);
     } catch (error) {
@@ -83,11 +19,7 @@ export function useTenderManager() {
 
   const isParticipant = async (tenderId: string, participantAddress: string) => {
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const tenderManagerAddress = import.meta.env.VITE_TENDER_MANAGER_CONTRACT_ADDRESS;
-      const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
-
+      const contract = await getTenderManagerContract();
       return await contract.isParticipant(tenderId, participantAddress);
     } catch (error) {
       console.error("Error checking participant status:", error);
@@ -95,58 +27,83 @@ export function useTenderManager() {
     }
   };
 
-  const addParticipant = async (tenderId: string, participantAddress: string, participantName: string, participantEmail: string) => {
+  const parseParticipants = async (tenderId: string, address: string, passphrase: string, expectedTenderId: string) => {
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-      const messageHash = ethers.utils.keccak256(
-        ethers.utils.solidityPack(
-          ['string', 'uint256'],
-          [tenderId, deadline]
-        )
+      const response = await getTenderKey(address as string);
+
+      console.log(response)
+
+      const cidsOfTender = []
+      const mapTenderKeyToCid: { [key: string]: string } = {}
+      const mapIvToCid: { [key: string]: string } = {}
+      if (response && response.length > 0) {
+        for (const res of response) {
+          const symmetricKey = await decryptSymmetricKey(address as string, passphrase, res.encryptedKey)
+          const tenderId = await decryptWithSymmetricKey(res.tenderId, symmetricKey, res.iv)
+          if (tenderId === expectedTenderId) {
+            cidsOfTender.push(res.cid)
+            mapTenderKeyToCid[res.cid] = symmetricKey
+            mapIvToCid[res.cid] = res.iv
+          }
+        }
+      }
+      
+      const documents = await getDocumentByCids(cidsOfTender)
+      const decryptedDocuments: any[] = []
+      for (let index = 0; index < documents.length; index++) {
+        const encryptedMetadata = documents[index];
+
+        const decryptedMetadata = await decryptDocumentMetadata(
+          encryptedMetadata.tenderId, 
+          encryptedMetadata.documentName,  
+          encryptedMetadata.documentFormat, 
+          encryptedMetadata.participantName, 
+          encryptedMetadata.participantEmail, 
+          mapTenderKeyToCid[encryptedMetadata.documentCid], 
+          mapIvToCid[encryptedMetadata.documentCid]);
+        
+        decryptedDocuments.push({
+          tenderId: decryptedMetadata.decryptedTenderId,
+          documentOwner: encryptedMetadata.contestant,
+          documentName: decryptedMetadata.decryptedDocumentName,
+          documentFormat: decryptedMetadata.decryptedDocumentFormat,
+          participantName: decryptedMetadata.decryptedParticipantName,
+          participantEmail: decryptedMetadata.decryptedParticipantEmail,
+          submissionDate: encryptedMetadata.submissionDate,
+          documentCid: encryptedMetadata.documentCid
+        });
+      }
+
+      const filtered = decryptedDocuments.filter(doc => 
+        doc.tenderId === tenderId
       );
 
-      // Sign the message
-      const signature = await signer.signMessage(ethers.utils.arrayify(messageHash));
-      const { v, r, s } = ethers.utils.splitSignature(signature);
+      const participantsMap = new Map<string, { address: string; name: string; email: string }>();
 
-      // Get contract instance
-      const tenderManagerAddress = import.meta.env.VITE_TENDER_MANAGER_CONTRACT_ADDRESS;
-      const contract = new ethers.Contract(tenderManagerAddress, TenderManagerArtifact.abi, signer);
+      for (const doc of filtered) {
+        if (!participantsMap.has(doc.documentOwner)) {
+          participantsMap.set(doc.documentOwner, {
+            address: doc.documentOwner,
+            name: doc.participantName,
+            email: doc.participantEmail
+          });
+        }
+      }
+      
+      const participants = Array.from(participantsMap.values());
 
-      // Call the smart contract
-      const tx = await contract.addParticipant(
-        tenderId,
-        participantAddress,
-        participantName,
-        participantEmail,
-        v,
-        r,
-        s,
-        deadline
-      );
 
-      // Wait for transaction to be mined
-      await tx.wait();
+      return { participants, participantsMap, filtered }
 
-      return true;
     } catch (error) {
-      console.error("Error adding participant:", error);
-      throw error;
+      console.error("Error parsing participant:", error);
     }
-  };
+  }
 
   return {
-    isPending,
-    isRegistered,
-    checkRegistrationStatus,
-    participants,
-    pendingParticipants,
-    isPendingParticipant,
+    getWinner,
     isParticipant,
-    addParticipant,
-    getWinner
+    parseParticipants
   };
 }
 
@@ -157,45 +114,25 @@ export function useDocumentStore() {
     infoDocuments: [],
   });
 
-
-  const fetchDocuments = async (tenderId: string) => {
-    try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const documentStoreAddress = import.meta.env.VITE_DOCUMENT_STORE_CONTRACT_ADDRESS;
-      const contract = new ethers.Contract(documentStoreAddress, DocumentStoreArtifact.abi, signer);
-
-      const docs = await contract.getMyDocuments(tenderId);
-      const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
-      const tenderDocs = docs.filter((doc: Document) => doc.documentType === "Tender");
-      const infoDocs = await contract.getTenderInfoDocuments(tenderId);
-      setDocuments({ registrationDocuments: registrationDocs, tenderDocuments: tenderDocs, infoDocuments: infoDocs });
-    } catch (error) {
-      console.error("Error fetching documents:", error);
-    }
-  };
-
   const fetchParticipantDocuments = async (tenderId: string, participantAddress: string) => {
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const documentStoreAddress = import.meta.env.VITE_DOCUMENT_STORE_CONTRACT_ADDRESS;
-      const contract = new ethers.Contract(documentStoreAddress, DocumentStoreArtifact.abi, signer);
+      const contract = await getDocumentStoreContract();
 
-      const docs = await contract.getDocumentsOfTender(tenderId, participantAddress);
-      const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
-      const tenderDocs = docs.filter((doc: Document) => doc.documentType !== "Registration");
+      // const docs = await contract.getDocumentsOfTender(tenderId, participantAddress);
+      // const registrationDocs = docs.filter((doc: Document) => doc.documentType === "Registration");
+      // const tenderDocs = docs.filter((doc: Document) => doc.documentType !== "Registration");
       const infoDocs = await contract.getTenderInfoDocuments(tenderId);
-      return { registrationDocuments: registrationDocs, tenderDocuments: tenderDocs, infoDocuments: infoDocs };
+      return { registrationDocuments: [], tenderDocuments: [], infoDocuments: infoDocs };
     } catch (error) {
       console.error("Error fetching participant documents:", error);
       return { registrationDocuments: [], tenderDocuments: [], infoDocuments: [] };
     }
   };
 
+  
+
   return {
     documents,
-    fetchDocuments,
-    fetchParticipantDocuments
+    fetchParticipantDocuments,
   };
 } 

@@ -99,7 +99,7 @@ export async function selectWinner(req: Request, res: Response) {
         const { tenderId } = req.params;
         const { winner, reason, v, r, s, deadline } = req.body;
 
-        if (!tenderId || !winner || !reason || !v || !r || !s || !deadline) {
+        if (!tenderId || !winner || !reason) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 

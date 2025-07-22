@@ -4,9 +4,8 @@ import { AES, enc, lib, mode, pad } from "crypto-js";
 import { toast } from "react-toastify";
 import { Document } from "@/lib/types"
 import { Buffer } from "buffer";
-import KeyManagerArtifact from '../../../backend/artifacts/contracts/KeyManager.sol/KeyManager.json';
-import { ethers } from "ethers";
 import { create } from "ipfs-http-client";
+import { getAccessManagerContract } from "./contracts";
 
 window.Buffer = Buffer;
 
@@ -292,14 +291,11 @@ export async function downloadEncryptedFile(address: string, doc: Document, pass
   try {
     let encryptedKey = "";
     let iv = "";
-    
-    // Always use contract call to get encrypted key
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = provider.getSigner();
-    const documentStoreAddress = import.meta.env.VITE_KEY_MANAGER_CONTRACT_ADDRESS;
-    const contract = new ethers.Contract(documentStoreAddress, KeyManagerArtifact.abi, signer);
 
-    const docs = await contract.getEncryptedKey(doc.documentCid, address);
+
+    const contract = await getAccessManagerContract();
+
+    const docs = await contract.getEncryptedContentKey(doc.documentCid, address);
 
     encryptedKey = docs[0]
     iv = docs[1]
@@ -356,7 +352,7 @@ export async function downloadFile(doc: Document) {
   }
 }
 
-export async function encryptSymmetricKeyWithPublicKey(symmetricKey: string, publicKeyJwk: any) {
+export async function encryptWithPublicKey(stringToEncrypt: string, publicKeyJwk: any) {
   // Import the public key from JWK format
   const publicKey = await window.crypto.subtle.importKey(
     "jwk",
@@ -375,21 +371,66 @@ export async function encryptSymmetricKeyWithPublicKey(symmetricKey: string, pub
       name: "RSA-OAEP",
     },
     publicKey,
-    new TextEncoder().encode(symmetricKey)
+    new TextEncoder().encode(stringToEncrypt)
   );
 
   // Convert to base64 for storage/transmission
   return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
 }
 
+export async function encryptWithSymmetricKey(
+  data: string,
+  symmetricKey: string,
+  iv: string
+): Promise<string> {
+  // Convert hex string key to Uint8Array
+  const keyArray = new Uint8Array(Buffer.from(symmetricKey, 'hex'));
+
+  // Import the symmetric key
+  const cryptoKey = await window.crypto.subtle.importKey(
+    "raw",
+    keyArray,
+    { name: "AES-CBC" },
+    false,
+    ["encrypt"]
+  );
+
+  // Convert string data to Uint8Array
+  const dataArray = new TextEncoder().encode(data);
+
+  // Encrypt the data
+  const encryptedBuffer = await window.crypto.subtle.encrypt(
+    { name: "AES-CBC", iv: Buffer.from(iv, 'hex') },
+    cryptoKey,
+    dataArray
+  );
+
+  return Buffer.from(new Uint8Array(encryptedBuffer)).toString('hex');
+}
+
+
 export function showPassphraseDialog(): Promise<string | null> {
   return new Promise((resolve) => {
+    // Check if passphrase is already stored in localStorage
+    const storedPassphrase = localStorage.getItem('tender_app_passphrase');
+    if (storedPassphrase) {
+      resolve(storedPassphrase);
+      return;
+    }
+
     // Create a simple dialog using browser's built-in prompt
     const passphrase = prompt("Enter your private key passphrase:")
     if (passphrase === null) {
       resolve(null) // User cancelled
     } else {
-      resolve(passphrase.trim() || null)
+      const trimmedPassphrase = passphrase.trim() || null;
+      if (trimmedPassphrase) {
+        const storeUntilLogout = confirm("Do you want to store this passphrase until logout? (You won't need to enter it again for this session)");
+        if (storeUntilLogout) {
+          localStorage.setItem('tender_app_passphrase', trimmedPassphrase);
+        }
+      }
+      resolve(trimmedPassphrase);
     }
   })
 }
@@ -397,12 +438,17 @@ export function showPassphraseDialog(): Promise<string | null> {
 export async function downloadEncryptedFileWithDialog(address: string, doc: Document) {
   const passphrase = await showPassphraseDialog()
   if (passphrase) {
+    console.log(doc)
     const success = await downloadEncryptedFile(address, doc, passphrase)
     if (!success) {
       return false;
     }
     return true
   }
+}
+
+export function clearStoredPassphrase() {
+  localStorage.removeItem('tender_app_passphrase');
 }
 
 export const initIPFSClient = async () => {
@@ -464,3 +510,78 @@ export async function uploadToIPFSClientEncrypted(file: File) {
   };
 }
 
+export async function encryptDocumentMetadata(tenderId: string, documentName: string, documentType: string, documentFormat: string, participantName: string, participantEmail: string) {
+  const symmetricKey = await generateSymmetricKey();
+  const keyString = Buffer.from(symmetricKey).toString('hex');
+  const iv = Buffer.from(window.crypto.getRandomValues(new Uint8Array(16))).toString('hex');
+  
+  const encryptedDocumentName = await encryptWithSymmetricKey(documentName, keyString, iv);
+  const encryptedDocumentFormat = await encryptWithSymmetricKey(documentFormat, keyString, iv);
+  const encryptedDocumentType = await encryptWithSymmetricKey(documentType, keyString, iv);
+  const encryptedParticipantName = await encryptWithSymmetricKey(participantName, keyString, iv);
+  const encryptedParticipantEmail = await encryptWithSymmetricKey(participantEmail, keyString, iv);
+  const encryptedTenderId = await encryptWithSymmetricKey(tenderId, keyString, iv);
+
+  return {
+    encryptedDocumentName,
+    encryptedDocumentFormat,
+    encryptedDocumentType,
+    encryptedParticipantName,
+    encryptedParticipantEmail,
+    encryptedTenderId,
+    keyString,
+    iv,
+  }
+}
+
+export async function decryptDocumentMetadata(tenderId: string, documentName: string, documentFormat: string, participantName: string, participantEmail: string, symmetricKey: string, iv: string) {  
+  const decryptedDocumentName = await decryptWithSymmetricKey(documentName, symmetricKey, iv);
+  const decryptedDocumentFormat = await decryptWithSymmetricKey(documentFormat, symmetricKey, iv);
+  const decryptedParticipantName = await decryptWithSymmetricKey(participantName, symmetricKey, iv);
+  const decryptedParticipantEmail = await decryptWithSymmetricKey(participantEmail, symmetricKey, iv);
+  const decryptedTenderId = await decryptWithSymmetricKey(tenderId, symmetricKey, iv);
+
+  return {
+    decryptedDocumentName,
+    decryptedDocumentFormat,
+    decryptedParticipantName,
+    decryptedParticipantEmail,
+    decryptedTenderId
+  }
+}
+
+export async function decryptWithSymmetricKey(
+  encryptedData: string,
+  symmetricKey: string,
+  iv: string
+): Promise<string> {
+  // Convert hex strings to Uint8Array
+  const keyArray = new Uint8Array(Buffer.from(symmetricKey, 'hex'));
+  const ivArray = new Uint8Array(Buffer.from(iv, 'hex'));
+  
+  // Import the symmetric key
+  const cryptoKey = await window.crypto.subtle.importKey(
+    "raw",
+    keyArray,
+    { name: "AES-CBC" },
+    false,
+    ["decrypt"]
+  );
+
+  // Decrypt the data
+  const decryptedBuffer = await window.crypto.subtle.decrypt(
+    { name: "AES-CBC", iv: ivArray },
+    cryptoKey,
+    Buffer.from(encryptedData, 'hex')
+  );
+
+  // Convert decrypted ArrayBuffer to string
+  return new TextDecoder().decode(decryptedBuffer);
+}
+
+
+export function generateTenderId(): string {
+  const timestamp = Date.now().toString(36); // Convert timestamp to base36
+  const random = Math.random().toString(36).substring(2, 8); // Random 6 chars
+  return `${timestamp}-${random}`; // Format: timestamp-random
+}

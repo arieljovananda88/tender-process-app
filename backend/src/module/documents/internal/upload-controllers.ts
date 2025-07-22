@@ -50,10 +50,6 @@ async function uploadDocument(req: any, res: any) {
       documentFormat,
       participantName,
       participantEmail,
-      deadline,
-      v,
-      r,
-      s,
       signer
     } = req.body;
 
@@ -61,7 +57,7 @@ async function uploadDocument(req: any, res: any) {
       return res.status(400).json({ error: err ? 'File upload failed' : 'No file provided' });
     }
 
-    if (!tenderId || !documentName || !documentType || !participantName || !participantEmail || !deadline || !v || !r || !s || !signer || !documentFormat) {
+    if (!tenderId || !documentName || !documentType || !participantName || !participantEmail|| !documentFormat || !signer) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -81,10 +77,7 @@ async function uploadDocument(req: any, res: any) {
         documentFormat,
         participantName,
         participantEmail,
-        deadline,
-        v,
-        r,
-        s
+        decrypted: ""
       };
       const uploadDocumentTx = await documentStore.uploadDocumentWithSignature(uploadInput);
       await uploadDocumentTx.wait();
@@ -129,10 +122,7 @@ async function uploadDocument(req: any, res: any) {
         iv,
         cid,
         tenderId,
-        documentName,
-        v,
-        r,
-        s, deadline});
+        documentName});
       await emitKeyOwnerTx.wait();
 
       const emitKeySignerTx = await keyManager.emitKey({
@@ -141,10 +131,7 @@ async function uploadDocument(req: any, res: any) {
         iv,
         cid,
         tenderId,
-        documentName,
-        v,
-        r,
-        s, deadline});
+        documentName});
       await emitKeySignerTx.wait();
 
       return res.status(200).json({

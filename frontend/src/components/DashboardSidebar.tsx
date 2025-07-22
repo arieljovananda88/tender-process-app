@@ -26,10 +26,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { encryptPrivateKeyWithPassphrase, openDB } from '@/lib/utils';
 import { toast } from 'react-toastify';
 import { useAccount } from 'wagmi';
+import { useState, useEffect } from 'react';
+import { getPublicKeyStorageContract } from '@/lib/contracts';
 
 export function DashboardSidebar() {
   const location = useLocation()
   const [tendersOpen, setTendersOpen] = React.useState(true)
+  const [userRole, setUserRole] = useState<string>('');
+  const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   // Re-import Private Key state
   const [showReimportDialog, setShowReimportDialog] = React.useState(false);
@@ -54,6 +58,28 @@ export function DashboardSidebar() {
   const handleReimportPassphraseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setReimportPassphrase(e.target.value);
   };
+
+  const checkUserRole = async () => {
+    if (!address) {
+      setIsLoadingRole(false);
+      return;
+    }
+    
+    try {
+      const publicKeyStorageContract = await getPublicKeyStorageContract();
+      const role = await publicKeyStorageContract.getRole(address);
+      setUserRole(role);
+    } catch (error) {
+      console.error('Error checking user role:', error);
+      setUserRole('');
+    } finally {
+      setIsLoadingRole(false);
+    }
+  };
+
+  useEffect(() => {
+    checkUserRole();
+  }, [address]);
 
   const handleSaveReimportedKey = async () => {
     if (!reimportPassphrase) {
@@ -113,64 +139,76 @@ export function DashboardSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
+          {!isLoadingRole && (
+            <>
+              {/* Show Tenders section only for non-organizers */}
+              {userRole !== 'organizer' && (
+                <Collapsible open={tendersOpen} onOpenChange={setTendersOpen} className="group/collapsible">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton>
+                        <Package className="size-4" />
+                        <span>Tenders</span>
+                        <ChevronDown className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/tenders/search")}>
+                            <Link to="/tenders/search">
+                              <Search className="size-4" />
+                              <span>Search Tenders</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/tenders/registered")}>
+                            <Link to="/tenders/registered">
+                              <FileSearch className="size-4" />
+                              <span>Registered Tenders</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              )}
 
-          <Collapsible open={tendersOpen} onOpenChange={setTendersOpen} className="group/collapsible">
-            <SidebarMenuItem>
-              <CollapsibleTrigger asChild>
-                <SidebarMenuButton>
-                  <Package className="size-4" />
-                  <span>Tenders</span>
-                  <ChevronDown className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+              {/* Show My Tenders for organizers */}
+              {userRole === 'organizer' && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/my-tenders")}>
+                    <Link to="/my-tenders">
+                      <ClipboardList className="size-4" />
+                      <span>My Tenders</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
+              {/* Show Access Requests for organizers */}
+              {userRole === 'organizer' && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/access-requests")}>
+                    <Link to="/access-requests">
+                      <ScanEye className="size-4" />
+                      <span>Access Requests</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
+              {/* Show Re-import Private Key for all users */}
+              <SidebarMenuItem>
+                <SidebarMenuButton className="w-full" onClick={() => setShowReimportDialog(true)}>
+                  <KeyRound className="size-4" />
+                  <span>Re-import Private Key</span>
                 </SidebarMenuButton>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SidebarMenuSub>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton asChild isActive={isActive("/tenders/search")}>
-                      <Link to="/tenders/search">
-                        <Search className="size-4" />
-                        <span>Search Tenders</span>
-                      </Link>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton asChild isActive={isActive("/tenders/registered")}>
-                      <Link to="/tenders/registered">
-                        <FileSearch className="size-4" />
-                        <span>Registered Tenders</span>
-                      </Link>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                </SidebarMenuSub>
-              </CollapsibleContent>
-            </SidebarMenuItem>
-          </Collapsible>
-
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/my-tenders")}>
-              <Link to="/my-tenders">
-                <ClipboardList className="size-4" />
-                <span>My Tenders</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/access-requests")}>
-              <Link to="/access-requests">
-                <ScanEye className="size-4" />
-                <span>Access Requests</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          <SidebarMenuItem>
-            <SidebarMenuButton className="w-full" onClick={() => setShowReimportDialog(true)}>
-              <KeyRound className="size-4" />
-              <span>Re-import Private Key</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
+              </SidebarMenuItem>
+            </>
+          )}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="absolute bottom-0 left-0 right-0 p-4 h-auto">

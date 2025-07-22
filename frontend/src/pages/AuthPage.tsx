@@ -6,9 +6,9 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { checkIsRegistered , getUser } from "@/lib/api";
-import { ethers, Wallet } from "ethers";
-import PublicKeyStorageArtifact from '../../../backend/artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json';
+import { checkIsRegistered } from "@/lib/api_contract";
+import { Wallet } from "ethers";
+import { getPublicKeyStorageContract } from "@/lib/contracts";
 
 const AuthPage: React.FC = () => {
   const { address, isConnected } = useAccount();
@@ -29,19 +29,14 @@ const AuthPage: React.FC = () => {
     }
 
       setAuthStatus("Waiting to log in...");
-      const user = await getUser(address);
-      if (!user) {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const publicKeyStorageAddress = import.meta.env.VITE_PUBLIC_KEY_STORAGE_CONTRACT_ADDRESS  ;
-        const contract = new ethers.Contract(publicKeyStorageAddress, PublicKeyStorageArtifact.abi, signer);
 
-        const email = await contract.getEmail(address);
-        const name = await contract.getName(address);
-        localStorage.setItem("user", JSON.stringify({ address, name, email }));
-      }else{
-        localStorage.setItem("user", JSON.stringify({ address, name: user.name, email: user.email }));
-      }
+      const contract = await getPublicKeyStorageContract();
+
+      const email = await contract.getEmail(address);
+      const name = await contract.getName(address);
+      const role = await contract.getRole(address); 
+      localStorage.setItem("user", JSON.stringify({ address, name: name, email: email, role: role }));
+      
       navigate("/tenders/search");
   };
 

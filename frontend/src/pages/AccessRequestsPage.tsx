@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { SearchHeader } from "@/components/SearchHeader"
-import { getAccessRequests, getAccessRequestsLength, getAccessRequestsToMe, getAccessRequestsToMeLength, getKey, type AccessRequest } from "@/lib/api"
+import { getAccessRequests, getAccessRequestsLength, getAccessRequestsToMe, getAccessRequestsToMeLength, getKey } from "@/lib/api_the_graph"
+import { AccessRequest } from "@/lib/types"
 import {
   Pagination,
   PaginationContent,
@@ -13,13 +14,12 @@ import {
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FileText, User, Calendar, Download } from "lucide-react"
-import { decryptSymmetricKey, encryptSymmetricKeyWithPublicKey, formatDate, shortenAddress, downloadEncryptedFileWithDialog } from "@/lib/utils"
+import { decryptSymmetricKey, encryptWithPublicKey, formatDate, shortenAddress, downloadEncryptedFileWithDialog } from "@/lib/utils"
 import { useAccount } from "wagmi"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "react-toastify"
-import { ethers } from "ethers"
-import { grantAccess } from "@/lib/api"
-import PublicKeyStorageArtifact from "../../../backend/artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json"
+import { grantAccess } from "@/lib/api_contract"
+import { getPublicKeyStorageContract } from "@/lib/contracts"
 
 const ITEMS_PER_PAGE = 8
 
@@ -133,17 +133,6 @@ export default function AccessRequestsPage() {
   const paginatedRequests = currentRequests
 
   const handleGrantAccess = async (request: AccessRequest) => {
-    const provider = new ethers.providers.Web3Provider(window.ethereum)
-    const signer = provider.getSigner();
-    const deadline = Math.floor(Date.now() / 1000) + 3600;
-    const messageHash = ethers.utils.keccak256(
-      ethers.utils.solidityPack(
-        ["string", "string", "uint256"],
-        [request.tenderId, request.documentName, deadline]
-      )
-    )
-    const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
-    const splitSig = ethers.utils.splitSignature(signature)
 
     const {encryptedKey, iv} = await getKey(address as string, request.cid)
     if (!encryptedKey) {
@@ -151,8 +140,7 @@ export default function AccessRequestsPage() {
       return false;
     }
 
-    const publicKeyStorageAddress = import.meta.env.VITE_PUBLIC_KEY_STORAGE_CONTRACT_ADDRESS;
-    const publicKeyStorageContract = new ethers.Contract(publicKeyStorageAddress, PublicKeyStorageArtifact.abi, signer);
+    const publicKeyStorageContract = await getPublicKeyStorageContract();
 
     const requesterPublicKeyString = await publicKeyStorageContract.getPublicKey(request.requester);
     
@@ -165,7 +153,7 @@ export default function AccessRequestsPage() {
       return;
     }
 
-    const passphrase = await prompt("Enter passphrase")
+    const passphrase = await prompt("Enter passphrase for granting access")
     if (!passphrase) {
       toast.error("No passphrase entered");
       return;
@@ -173,9 +161,9 @@ export default function AccessRequestsPage() {
 
     const symmetricKey = await decryptSymmetricKey(address as string, passphrase, encryptedKey)
 
-    const encryptedSymmetricKey = await encryptSymmetricKeyWithPublicKey(symmetricKey, requesterPublicKey)
+    const encryptedSymmetricKey = await encryptWithPublicKey(symmetricKey, requesterPublicKey)
      
-    const response = await grantAccess(request.requester, request.tenderId, request.cid, request.documentName, encryptedSymmetricKey, iv, deadline, splitSig.v, splitSig.r, splitSig.s)
+    const response = await grantAccess(request.requester, request.tenderId, request.cid, request.documentName, encryptedSymmetricKey, iv)
     if (response.success) {
       toast.success("Access granted!")
     } else {

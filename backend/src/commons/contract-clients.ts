@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
-import PublicKeyStorageArtifact from '../../artifacts/contracts/PublicKeyStorage.sol/PublicKeyStorage.json';
+import PublicKeyStorageArtifact from '../../artifacts/contracts/PublicKeyStore.sol/PublicKeyStore.json';
 import DocumentStoreArtifact from '../../artifacts/contracts/DocumentStore.sol/DocumentStore.json';
 import TenderManagerArtifact from '../../artifacts/contracts/TenderManager.sol/TenderManager.json';
-import KeyManagerArtifact from '../../artifacts/contracts/KeyManager.sol/KeyManager.json';
+import KeyManagerArtifact from '../../artifacts/contracts/AccessManager.sol/AccessManager.json';
 
 export function getPublicKeyStoregeContractInstance() {
     const CONTRACT_ADDRESS = process.env.PUBLIC_KEY_STORAGE_CONTRACT_ADDRESS;

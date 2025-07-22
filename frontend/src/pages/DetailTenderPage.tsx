@@ -6,11 +6,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, User, Clock, ArrowLeft, Trophy } from "lucide-react"
 import { ParticipantsList } from "@/components/ParticipantsList"
 import { DocumentList } from "@/components/DocumentList"
-import { getTenderById, type Tender } from "@/lib/api"
-import { formatDate, shortenAddress, calculateTimeRemaining } from "@/lib/utils"
+import { getTenderById } from "@/lib/api_the_graph" 
+import { Document, Tender } from "@/lib/types"
+import { formatDate, shortenAddress, calculateTimeRemaining, showPassphraseDialog } from "@/lib/utils"
 import { useAccount } from "wagmi";
-import { useTenderManager, useDocumentStore } from '@/hooks/useContracts';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { useTenderManager } from '@/hooks/useContracts';
+import { getDocumentStoreContract } from "@/lib/contracts"
 
 export default function TenderDetailPage() {
   const { id } = useParams()
@@ -19,19 +20,22 @@ export default function TenderDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [winnerAddress, setWinnerAddress] = useState<string | null>(null)
-  
-  const { documents, fetchDocuments } = useDocumentStore();
-
-  const { isPending, isRegistered, checkRegistrationStatus, participants, pendingParticipants, getWinner } = useTenderManager();
-
-  // Filter out participants who are in both lists
-  const filteredPendingParticipants = pendingParticipants.filter(
-    pending => !participants.some(participant => participant.address.toLowerCase() === pending.address.toLowerCase())
-  );
-
+  const [participantLoading, setParticipantLoading] = useState(false);
+  const [infoDocuments, setInfoDocuments] = useState<Document[]>([]);
+  const [tenderDocuments, setTenderDocuments] = useState<Document[]>([]);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const { getWinner, parseParticipants } = useTenderManager();
+  const [participants, setParticipants] = useState<any[]>([]);
   const isOwner = address?.toLowerCase() === tender?.owner.toLowerCase()
   const isWinner = address?.toLowerCase() === winnerAddress?.toLowerCase()
   const isActive = tender ? new Date(Number(tender.endDate) * 1000).getTime() > Date.now() : false
+
+  // export type Document = {
+  //   documentCid: string;
+  //   documentName: string;
+  //   documentFormat: string;
+  //   submissionDate: string;
+  // };
 
   useEffect(() => {
     const fetchTender = async () => {
@@ -40,15 +44,47 @@ export default function TenderDetailPage() {
         setTender(tender)
         const winner = await getWinner(id as string)
         setWinnerAddress(winner)
+        const contract = await getDocumentStoreContract();
+        const infoDocs = await contract.getTenderInfoDocuments(id as string)
+        setInfoDocuments(infoDocs)
       } catch (err) {
         setError("Failed to fetch tender")
       } finally {
         setLoading(false)
       }
     }
+
+    const fetchParticipants = async () => {
+      const passphrase = await showPassphraseDialog();
+      if (!passphrase) {
+        return [];
+      }
+      setParticipantLoading(true);
+      const result = await parseParticipants(id as string, address as string, passphrase, id as string);
+      const user = localStorage.getItem("user")
+      const userData = user ? JSON.parse(user) : null
+
+      if (result) {
+        if (userData.role === "participant") {
+          console.log(result.filtered)
+          const tenderDocuments = result.filtered.map((doc: Document) => ({
+            documentCid: doc.documentCid,
+            documentName: doc.documentName,
+            documentFormat: doc.documentFormat,
+            submissionDate: doc.submissionDate
+          }));
+          setTenderDocuments(tenderDocuments);
+        }
+
+        setParticipants(result.participants);
+        setIsRegistered(result.participantsMap.has(address?.toLowerCase() as string));
+      }
+      setParticipantLoading(false);
+    }
+
+
     fetchTender()
-    checkRegistrationStatus(id as string);
-    fetchDocuments(id as string);
+    fetchParticipants();
   }, [id])
 
   if (loading) {
@@ -80,37 +116,9 @@ export default function TenderDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* Left sidebar - Participants (for non-owners only) */}
-        {!isOwner && (
-          <div className="xl:col-span-3">
-            <h2 className="text-lg font-semibold mb-4">Participants</h2>
-            <Tabs defaultValue="participants" className="w-full">
-              <TabsList className="w-full">
-                <TabsTrigger value="participants" className="flex-1">Participants</TabsTrigger>
-                <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
-              </TabsList>
-              <TabsContent value="participants" className="space-y-6 mt-6">
-                <ParticipantsList
-                  forPending={false}
-                  participants={participants}
-                  winnerId={winnerAddress}
-                  tenderId={id as string}
-                />
-              </TabsContent>
-              <TabsContent value="pending" className="space-y-6 mt-6">
-                <ParticipantsList
-                  forPending={true}
-                  participants={filteredPendingParticipants}
-                  winnerId={winnerAddress}
-                  tenderId={id as string}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
 
         {/* Main content - center */}
-        <div className={`space-y-6 ${isOwner ? 'xl:col-span-9' : 'xl:col-span-6'}`}>
+        <div className={`space-y-6 xl:col-span-9`}>
           <div className="flex justify-between items-start">
             <h1 className="text-2xl font-bold">{tender.name}</h1>
             <Badge className={isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
@@ -147,7 +155,7 @@ export default function TenderDetailPage() {
           <div className="border-t pt-4">
             <h2 className="text-lg font-semibold mb-2">Tender Information Documents</h2>
             <DocumentList
-              documents={documents.infoDocuments}
+              documents={infoDocuments}
               isRegistered={true}
               isActive={isActive}
               typeOfFile="Info"
@@ -156,25 +164,6 @@ export default function TenderDetailPage() {
               canUpload={isOwner}
             />
           </div>
-
-          {/* Documents Section - Changes based on registration status */}
-          {!isOwner && (
-            <div className="border-t pt-4">
-              <h2 className="text-lg font-semibold mb-2">
-                {isRegistered ? "Tender Documents" : "Registration Documents"}
-              </h2>
-              <DocumentList
-                documents={isRegistered ? documents.tenderDocuments : documents.registrationDocuments}
-                isRegistered={isRegistered}
-                isActive={isActive}
-                typeOfFile={isRegistered ? "Tender" : "Registration"}
-                iconSize={10}
-                textSize="base"
-                canUpload={true}
-              />
-            </div>
-          )}
-
         </div>
 
         {/* Right sidebar - Participants (for owners) or Application status (for non-owners) */}
@@ -183,28 +172,16 @@ export default function TenderDetailPage() {
             // Participants section for tender owner
             <div>
               <h2 className="text-lg font-semibold mb-4">Participants</h2>
-              <Tabs defaultValue="participants" className="w-full">
-                <TabsList className="w-full">
-                  <TabsTrigger value="participants" className="flex-1">Participants</TabsTrigger>
-                  <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
-                </TabsList>
-                <TabsContent value="participants" className="space-y-6 mt-6">
-                  <ParticipantsList
-                    forPending={false}
-                    participants={participants}
-                    winnerId={winnerAddress}
-                    tenderId={id as string}
-                  />
-                </TabsContent>
-                <TabsContent value="pending" className="space-y-6 mt-6">
-                  <ParticipantsList
-                    forPending={true}
-                    participants={filteredPendingParticipants}
-                    winnerId={winnerAddress}
-                    tenderId={id as string}
-                  />
-                </TabsContent>
-              </Tabs>
+              {participantLoading ? (
+                <div className="text-center text-muted-foreground py-4">Loading participants...</div>
+              ) : (
+                <ParticipantsList
+                  forPending={false}
+                  participants={participants}
+                  winnerId={winnerAddress}
+                  tenderId={id as string}
+                />
+              )}
             </div>
           ) : (
             // Application status and Registration Documents for non-owners
@@ -225,18 +202,11 @@ export default function TenderDetailPage() {
                     </div>
                   ) : isActive ? (
                     <>
-                      {isPending ? (
-                        <div className="bg-amber-50 text-amber-800 p-3 rounded-md">
-                          <p className="font-medium">Waiting for Approval</p>
-                          <p className="text-sm mt-1">
-                            Your registration is pending approval from the tender owner.
-                          </p>
-                        </div>
-                      ) : isRegistered ? (
+                        {isRegistered ? (
                         <div className="bg-blue-50 text-blue-800 p-3 rounded-md">
                           <p className="font-medium">Registered</p>
                           <p className="text-sm mt-1">
-                            You are registered for this tender. You can upload your documents below.
+                            You have already registered for this tender. You can see your uploaded documents below.
                           </p>
                         </div>
                       ) : (
@@ -257,21 +227,18 @@ export default function TenderDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Registration Documents - Only show when registered */}
-              {isRegistered && (
                 <div className="space-y-4">
-                  <h2 className="text-lg font-semibold mb-2">Registration Documents</h2>
+                  <h2 className="text-lg font-semibold mb-2">Your Bid Documents</h2>
                   <DocumentList
-                    typeOfFile="Registration"
-                    documents={documents.registrationDocuments}
+                    typeOfFile="Tender"
+                    documents={tenderDocuments}
                     isRegistered={isRegistered}
                     isActive={isActive}
                     iconSize={8}
                     textSize="sm"
-                    canUpload={false}
+                    canUpload={true}
                   />
                 </div>
-              )}
             </>
           )}
         </div>

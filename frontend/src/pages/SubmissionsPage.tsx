@@ -11,9 +11,10 @@ import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
 import { toast } from "react-toastify"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getTenderById, getUser, requestAccess, selectWinner, Tender } from "@/lib/api"
+import { requestAccess, selectWinner } from "@/lib/api_contract"
+import { getTenderById } from "@/lib/api_the_graph"
+import { Tender } from "@/lib/types"
 import { Document } from "@/lib/types"
-import { ethers } from "ethers"
 import {
   Dialog,
   DialogContent,
@@ -57,7 +58,7 @@ export default function ParticipantSubmissionsPage() {
   const tenderId = params.id as string
   const participantAddress = params.address as string
   const { fetchParticipantDocuments } = useDocumentStore()
-  const { isPendingParticipant, addParticipant, isParticipant, getWinner } = useTenderManager()
+  const { isParticipant, getWinner } = useTenderManager()
   const [isPending, setIsPending] = useState(false)
   const [isRegistered, setIsRegistered] = useState(false)
   const [isWinner, setIsWinner] = useState(false)
@@ -79,17 +80,19 @@ export default function ParticipantSubmissionsPage() {
         if (docs) {
           setDocuments(docs);
         }
-        const pending = await isPendingParticipant(tenderId, participantAddress);
+        // const pending = await isPendingParticipant(tenderId, participantAddress);
         const registered = await isParticipant(tenderId, participantAddress);
         const winnerAddress = await getWinner(tenderId);
         setIsWinner(winnerAddress.toLowerCase() === participantAddress.toLowerCase())
-        const participant = await getUser(participantAddress);
+        
+        const participant = JSON.parse(localStorage.getItem("user") || "{}");
+  
         setParticipant({
           address: participantAddress,
           name: participant.name,
           email: participant.email
         });
-        setIsPending(pending); 
+        // setIsPending(pending); 
         setIsRegistered(registered);
         // Fetch tender details
         const tenderData = await getTenderById(tenderId);
@@ -138,20 +141,8 @@ export default function ParticipantSubmissionsPage() {
     }
   };
 
-  const handleRequestAccess = async (doc: Document) => {
-    const provider = new ethers.providers.Web3Provider(window.ethereum)
-    const signer = provider.getSigner();
-    const deadline = Math.floor(Date.now() / 1000) + 3600;
-    const messageHash = ethers.utils.keccak256(
-      ethers.utils.solidityPack(
-        ["uint256"],
-        [deadline]
-      )
-    )
-    const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
-    const splitSig = ethers.utils.splitSignature(signature)
-    
-    const response = await requestAccess(participantAddress, tenderId, doc.documentCid, doc.documentName, doc.documentFormat, deadline, splitSig.v, splitSig.r, splitSig.s)
+  const handleRequestAccess = async (doc: Document) => {    
+    const response = await requestAccess(participantAddress, tenderId, doc.documentCid, doc.documentName, doc.documentFormat)
 
     if (response.success) {
       toast.success('Access request sent!')
@@ -169,7 +160,7 @@ export default function ParticipantSubmissionsPage() {
         return;
       }
       setIsAddingParticipant(true);
-      await addParticipant(tenderId, participantAddress, participant?.name || "", participant?.email || "");
+      // await addParticipant(tenderId, participantAddress, participant?.name || "", participant?.email || "");
       toast.success("Participant added successfully");
       setIsPending(false);
     } catch (error) {
@@ -183,23 +174,8 @@ export default function ParticipantSubmissionsPage() {
   const handleChooseWinner = async () => {
     try {
       setIsChoosingWinner(true);
-      const provider = new ethers.providers.Web3Provider(window.ethereum)
-      const signer = provider.getSigner()
-      const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
 
-      // Create message hash for deadline
-      const messageHash = ethers.utils.keccak256(
-        ethers.utils.solidityPack(
-          ["string", "uint256"],
-          [tenderId, deadline]
-        )
-      )
-
-      // Sign the hash
-      const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
-      const splitSig = ethers.utils.splitSignature(signature)
-
-      const response = await selectWinner(tenderId, participantAddress, "Participant chosen as winner", deadline, splitSig.v, splitSig.r, splitSig.s);
+      const response = await selectWinner(tenderId, participantAddress, "Participant chosen as winner");
       if (response.success) {
         toast.success('Participant chosen as winner!');
         setIsWinner(true);

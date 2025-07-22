@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react"
 import { SearchHeader } from "@/components/SearchHeader"
 import { TenderCard } from "@/components/TenderCard"
-import { getRegisteredTendersLength, getRegisteredTenders, getTenders, getTendersLength, type Tender } from "@/lib/api"
+import { getRegisteredTendersLength, getRegisteredTenders, getTenders, getTendersLength } from "@/lib/api_the_graph"
+import { Tender } from "@/lib/types"
 import {
   Pagination,
   PaginationContent,

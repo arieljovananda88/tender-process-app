@@ -3,141 +3,77 @@ pragma solidity ^0.8.0;
 
 interface ITenderManager {
     function getOwner(string memory tenderId) external view returns (address);
-    function addPendingParticipant(string memory tenderId, string memory name, string memory email, address participant) external;
-    function isParticipant(string memory tenderId, address participant) external view returns (bool);
-    function isPendingParticipant(string memory tenderId, address participant) external view returns (bool);
-}
+    function addParticipant(string memory tenderId, string memory name, string memory email, address participant) external;
+} 
 
 contract DocumentStore {
-    struct Document {
-        address documentOwner;
+    struct InfoDocument {
+        string tenderId;
         string documentCid;
         string documentName;
-        string documentType;
         string documentFormat;
         uint256 submissionDate;
     }
 
-    struct UploadInput {
-        string tenderId;
+     struct Document {
+        address documentOwner;
         string documentCid;
         string documentName;
-        string documentType;
         string documentFormat;
+        uint256 submissionDate;
+        string tenderId;
+        address receiver;
         string participantName;
         string participantEmail;
-        uint256 deadline;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
     }
 
-    mapping(string => mapping(address => Document[])) public tenderDocuments;
+    mapping(string => Document[]) private tenderDocuments;
+    mapping(string => InfoDocument[]) private tenderInfoDocuments;
 
     mapping(string => address) public documentOwner;
-
-    mapping(string => Document[]) public tenderInfoDocuments;
-
+    mapping(string => address) public documentReceiver;
     ITenderManager public tenderManager;
 
-    event DocumentUploaded(string indexed tenderId, address indexed contestant, string documentCid, string documentName, uint256 submissionDate);
+    event DocumentUploaded(string tenderId, address contestant, string documentCid, string documentName, string documentFormat, address receiver, string participantName, string participantEmail, uint256 submissionDate);
 
     constructor(address tenderManagerAddress) {
         tenderManager = ITenderManager(tenderManagerAddress);
     }
 
-    function uploadTenderInfoDocumen(UploadInput memory input) public {
-        // Create the message hash
-        bytes32 messageHash = keccak256(abi.encodePacked(input.tenderId, input.documentName, input.deadline));
-        bytes32 ethSignedMessageHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
-        );
-
-        // Recover signer
-        address signer = ecrecover(ethSignedMessageHash, input.v, input.r, input.s);
-        require(signer != address(0), "Invalid signature");
-
-        // Check deadline to avoid replay
-        require(block.timestamp <= input.deadline, "Signature expired");
-
-        // Validate owner
+    function uploadInfoDocument(InfoDocument memory input) public {
         require(
-            tenderManager.getOwner(input.tenderId) == signer,
+            tenderManager.getOwner(input.tenderId) == msg.sender,
             "Only tender owner can upload tender info documents"
         );
 
-        Document memory newDocument = Document({
-            documentOwner: signer,
+        InfoDocument memory newDocument = InfoDocument({
+            tenderId: input.tenderId,
             documentCid: input.documentCid,
             documentName: input.documentName,
-            documentType: "info",
             documentFormat: input.documentFormat,
             submissionDate: block.timestamp
         });
 
         tenderInfoDocuments[input.tenderId].push(newDocument);
-
-        documentOwner[input.documentCid] = signer;
-
-        emit DocumentUploaded(input.tenderId, signer, input.documentCid, input.documentName, block.timestamp);
     }
 
-    function uploadDocument(UploadInput memory input) public {
-        bytes32 messageHash = keccak256(abi.encodePacked(input.tenderId, input.documentName, input.deadline));
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+    function uploadDocument(Document memory input) public {
+        documentOwner[input.documentCid] = msg.sender;
+        documentReceiver[input.documentCid] = input.receiver;
 
-        address signer = ecrecover(ethSignedMessageHash, input.v, input.r, input.s);
-        require(signer != address(0), "Invalid signature");
-
-        require(block.timestamp <= input.deadline, "Signature expired");
-
-        if (keccak256(bytes(input.documentType)) == keccak256(bytes("tender"))) {
-            require(
-                tenderManager.isParticipant(input.tenderId, signer),
-                "Only participants can upload tender documents"
-            );
-        }
-
-        Document memory newDocument = Document({
-            documentOwner: signer,
-            documentCid: input.documentCid,
-            documentName: input.documentName,
-            documentType: input.documentType,
-            documentFormat: input.documentFormat,
-            submissionDate: block.timestamp
-        });
-
-        tenderDocuments[input.tenderId][signer].push(newDocument);
-
-        documentOwner[input.documentCid] = signer;
-
-        if (!tenderManager.isParticipant(input.tenderId, signer) &&
-            !tenderManager.isPendingParticipant(input.tenderId, signer)) {
-            tenderManager.addPendingParticipant(input.tenderId, input.participantName, input.participantEmail, signer);
-        }
-
-        emit DocumentUploaded(input.tenderId, signer, input.documentCid, input.documentName, block.timestamp);
+        emit DocumentUploaded(input.tenderId, msg.sender, input.documentCid, input.documentName, input.documentFormat,  input.receiver, input.participantName, input.participantEmail, block.timestamp);
     }
 
-    function getMyDocuments(string memory tenderId) public view returns (Document[] memory) {
-        return tenderDocuments[tenderId][msg.sender];
-    }
-
-    function getMyDocument(string memory tenderId, uint256 index) public view returns (string memory, string memory, uint256) {
-        Document memory document = tenderDocuments[tenderId][msg.sender][index];
-        return (document.documentCid, document.documentName, document.submissionDate);
-    }
-
-    function getDocumentsOfTender(string memory tenderId, address user) public view returns (Document[] memory) {
-        return tenderDocuments[tenderId][user];
-    }
-
-    function getTenderInfoDocuments(string memory tenderId) public view returns (Document[] memory) {
+    function getTenderInfoDocuments(string memory tenderId) public view returns (InfoDocument[] memory) {
         return tenderInfoDocuments[tenderId];
     }
 
     function getDocumentOwner(string memory documentCid) public view returns (address) {
         return documentOwner[documentCid];
     }   
+
+    function getDocumentReceiver(string memory documentCid) public view returns (address) {
+        return documentReceiver[documentCid];
+    }
 
 }

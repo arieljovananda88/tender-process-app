@@ -8,9 +8,8 @@ import { useAccount } from "wagmi"
 import { useParams } from "react-router-dom"
 import { toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { uploadDocument, uploadInfoDocument } from "@/lib/api"
-import { ethers } from "ethers"
-import { Document } from "@/lib/types"
+import { uploadDocument, uploadInfoDocument } from "@/lib/api_contract"
+import { Document, InfoDocument } from "@/lib/types"
 
 import {
   Dialog,
@@ -23,7 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 interface DocumentListProps {
-  documents: Document[]
+  documents: Document[] | InfoDocument[]
   isRegistered?: boolean
   isActive?: boolean
   typeOfFile: "Tender" | "Registration" | "Info"
@@ -31,6 +30,11 @@ interface DocumentListProps {
   iconSize?: number
   textSize?: "sm" | "base" | "lg"
   canUpload?: boolean
+}
+
+// Helper function to check if document is InfoDocument
+const isInfoDocument = (doc: Document | InfoDocument): doc is InfoDocument => {
+  return 'tenderId' in doc && !('documentOwner' in doc);
 }
 
 export function DocumentList({ 
@@ -72,9 +76,16 @@ export function DocumentList({
     }
   }
 
-  const handleDownload = async (doc: Document) => {
-    if (doc.documentType === "info") {
-      await downloadFile(doc);
+  const handleDownload = async (doc: Document | InfoDocument) => {
+    if (isInfoDocument(doc)) {
+      // For InfoDocument, we need to create a Document-like object for downloadFile
+      const documentForDownload: Document = {
+        documentCid: doc.documentCid,
+        documentName: doc.documentName,
+        documentFormat: doc.documentFormat,
+        submissionDate: Math.floor(Date.now() / 1000).toString() // Use current time as fallback
+      };
+      await downloadFile(documentForDownload);
     } else {
       await downloadEncryptedFileWithDialog(address as string, doc);
     }
@@ -101,22 +112,6 @@ export function DocumentList({
     setIsUploading(true)
 
     try {
-      // Generate signature
-      const provider = new ethers.providers.Web3Provider(window.ethereum)
-      const signer = provider.getSigner()
-      const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
-
-      // Create message hash for deadline
-      const messageHash = ethers.utils.keccak256(
-        ethers.utils.solidityPack(
-          ["string", "string", "uint256"],
-          [tenderId, fileName, deadline]
-        )
-      )
-
-      // Sign the hash
-      const signature = await signer.signMessage(ethers.utils.arrayify(messageHash))
-      const splitSig = ethers.utils.splitSignature(signature)
 
       let response;
       const documentFormat = selectedFile.name.split('.').pop() || '';
@@ -127,11 +122,6 @@ export function DocumentList({
           documentName: fileName,
           documentFormat,
           tenderId,
-          deadline,
-          v: splitSig.v,
-          r: splitSig.r,
-          s: splitSig.s,
-          signer: address,
         });
       } else {
         const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -143,11 +133,7 @@ export function DocumentList({
           tenderId,
           participantName: user.name || '',
           participantEmail: user.email || '',
-          deadline,
-          v: splitSig.v,
-          r: splitSig.r,
-          s: splitSig.s,
-          signer: address
+          signer: address as string
         });
       }
 
@@ -202,7 +188,7 @@ export function DocumentList({
                       <div className="min-w-0 flex-1">
                         <h3 className={`font-medium text-${textSize} truncate`}>{doc.documentName}</h3>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Uploaded at {formatDate(doc.submissionDate.toString())}
+                          Uploaded at {isInfoDocument(doc) ? 'N/A' : formatDate(doc.submissionDate.toString())}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           CID: {doc.documentCid}

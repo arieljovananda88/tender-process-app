@@ -5,8 +5,9 @@ import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { registerUser } from '@/lib/api';
+import { registerUser } from '@/lib/api_contract';
 import { generateKeyPair, encryptPrivateKeyWithPassphrase, openDB } from '@/lib/utils';
 import { toast } from 'react-toastify';
 import { useAccount } from 'wagmi';
@@ -14,6 +15,7 @@ import { useAccount } from 'wagmi';
 interface FormData {
   name: string;
   email: string;
+  userType: string;
 }
 
 const RegisterPage: React.FC = () => {
@@ -22,6 +24,7 @@ const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
+    userType: '',
   });
   const [loading, setLoading] = useState<boolean>(false);
   const [showKeyDialog, setShowKeyDialog] = useState<boolean>(false);
@@ -33,6 +36,13 @@ const RegisterPage: React.FC = () => {
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleSelectChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      userType: value
     }));
   };
 
@@ -99,13 +109,13 @@ const RegisterPage: React.FC = () => {
       const address = await signer.getAddress();
 
       const newKeyPair = await generateKeyPair();
-      const publicKey =await window.crypto.subtle.exportKey("jwk", newKeyPair.publicKey);
+      const publicKey = await window.crypto.subtle.exportKey("jwk", newKeyPair.publicKey);
 
       // Export private key as JWK
       const jwk = await window.crypto.subtle.exportKey("jwk", newKeyPair.privateKey);
       setPrivateKey(JSON.stringify(jwk));
 
-      const response = await registerUser(formData.name, formData.email, address, JSON.stringify(publicKey));
+      const response = await registerUser(formData.name, formData.email, address, JSON.stringify(publicKey), formData.userType);
 
       if (response.success) {
         toast.success('Registration successful!');
@@ -159,6 +169,19 @@ const RegisterPage: React.FC = () => {
                 value={formData.email}
                 onChange={handleChange}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="userType">User Type</Label>
+              <Select value={formData.userType} onValueChange={handleSelectChange} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your user type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="participant">Participant</SelectItem>
+                  <SelectItem value="organizer">Organizer</SelectItem>
+                  <SelectItem value="third_party">Third Party</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <Button 
               type="submit" 

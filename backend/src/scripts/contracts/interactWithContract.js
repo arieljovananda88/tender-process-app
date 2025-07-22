@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv").config();
 var ethers = require("ethers").ethers;
 var TenderManager_json_1 = require("../../../artifacts/contracts/TenderManager.sol/TenderManager.json");
-var KeyManager_json_1 = require("../../../artifacts/contracts/KeyManager.sol/KeyManager.json");
+var KeyManager_json_1 = require("../../../artifacts/contracts/AccessManager.sol/AccessManager.json");
 function main() {
     return __awaiter(this, void 0, void 0, function () {
         var provider, privateKey, signer, tenderManagerAddress, tenderManagerContract, keyManager, keyManagerContract, getEncryptedKey, requestAccess;

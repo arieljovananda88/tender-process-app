@@ -1,22 +1,22 @@
 {
   "_format": "hh-sol-artifact-1",
-  "contractName": "IDocumentStore",
-  "sourceName": "contracts/KeyManager.sol",
+  "contractName": "IPublicKeyStorage",
+  "sourceName": "contracts/AccessManager.sol",
   "abi": [
     {
       "inputs": [
         {
-          "internalType": "string",
-          "name": "documentCid",
-          "type": "string"
+          "internalType": "address",
+          "name": "walletAddress",
+          "type": "address"
         }
       ],
-      "name": "getDocumentOwner",
+      "name": "getRole",
       "outputs": [
         {
-          "internalType": "address",
+          "internalType": "string",
           "name": "",
-          "type": "address"
+          "type": "string"
         }
       ],
       "stateMutability": "view",

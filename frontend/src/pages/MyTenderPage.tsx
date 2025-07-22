@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react"
 import { SearchHeader } from "@/components/SearchHeader"
 import { TenderCard } from "@/components/TenderCard"
-import { createTender, getMyTenders, getMyTendersLength, type Tender } from "@/lib/api"
+import { createTender } from "@/lib/api_contract"
+import { getMyTenders, getMyTendersLength } from "@/lib/api_the_graph"
+import { Tender } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { useAccount } from "wagmi"
-import { ethers } from "ethers"
+
 import {
   Dialog,
   DialogContent,
@@ -96,19 +98,6 @@ export default function MyTenders() {
   const handleCreateTender = async () => {
     try {
       setIsSubmitting(true);
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-      const messageHash = ethers.utils.keccak256(
-        ethers.utils.solidityPack(
-          ['uint256'],
-          [deadline]
-        )
-      );
-
-      // Sign the message
-      const signature = await signer.signMessage(ethers.utils.arrayify(messageHash));
-      const { v, r, s } = ethers.utils.splitSignature(signature);
 
       // Format dates to ISO string with time set to midnight UTC
       const startDate = new Date(formData.startDate);
@@ -118,13 +107,8 @@ export default function MyTenders() {
 
       const response = await createTender(
         formData.name,
-        "description",
         startDate.toISOString(),
         endDate.toISOString(),
-        deadline,
-        v,
-        r,
-        s
       );
 
       if (response.success) {

@@ -1,45 +1,36 @@
 {
   "_format": "hh-sol-artifact-1",
-  "contractName": "ITenderManager",
-  "sourceName": "contracts/DocumentStore.sol",
+  "contractName": "IDocumentStore",
+  "sourceName": "contracts/AccessManager.sol",
   "abi": [
     {
       "inputs": [
         {
           "internalType": "string",
-          "name": "tenderId",
+          "name": "documentCid",
           "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "name",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "email",
-          "type": "string"
-        },
+        }
+      ],
+      "name": "getDocumentOwner",
+      "outputs": [
         {
           "internalType": "address",
-          "name": "participant",
+          "name": "",
           "type": "address"
         }
       ],
-      "name": "addParticipant",
-      "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "view",
       "type": "function"
     },
     {
       "inputs": [
         {
           "internalType": "string",
-          "name": "tenderId",
+          "name": "documentCid",
           "type": "string"
         }
       ],
-      "name": "getOwner",
+      "name": "getDocumentReceiver",
       "outputs": [
         {
           "internalType": "address",
