@@ -29,6 +29,16 @@ contract TenderManager {
     event TenderCreated(string tenderId, address owner, string name, uint256 startDate, uint256 endDate);
     event WinnerSelected(string tenderId, address winner, string reason, uint256 timestamp);
     event ThirdPartyParticipantAdded(string tenderId, string tenderName, uint256 tenderStartDate, uint256 tenderEndDate, address thirdParty);
+    event TenderMetadataAdded(
+        string tenderId,
+        string name,
+        string department,
+        string projectScope,
+        string budget,  
+        string qualificationRequirements,
+        string submissionGuidelines,
+        string officialCommunicationChannel
+    );
 
     constructor(address publicKeyStorageAddress) {
         publicKeyStorage = IPublicKeyStorage(publicKeyStorageAddress);
@@ -85,6 +95,31 @@ contract TenderManager {
         thirdPartyParticipantsArray[tenderId].push(thirdParty);
         
         emit ThirdPartyParticipantAdded(tenderId, tenders[tenderId].name, tenders[tenderId].startDate, tenders[tenderId].endDate, thirdParty);
+    }
+
+    function addTenderMetadata(
+        string memory tenderId,
+        string memory name,
+        string memory department,
+        string memory projectScope,
+        string memory budget,
+        string memory qualificationRequirements,
+        string memory submissionGuidelines,
+        string memory officialCommunicationChannel
+    ) external {
+        Tender storage tender = tenders[tenderId];
+        require(msg.sender == tender.owner, "Only owner can add tender metadata");
+        
+        emit TenderMetadataAdded(
+            tenderId,
+            name,
+            department,
+            projectScope,
+            budget,
+            qualificationRequirements,
+            submissionGuidelines,
+            officialCommunicationChannel
+        );
     }
 
     function getWinner(string memory tenderId) external view returns (address) {

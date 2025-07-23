@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Building2, ChevronDown, ClipboardList, FileSearch, Package, Search, KeyRound, ScanEye} from "lucide-react"
+import { Building2, ChevronDown, ClipboardList, Package, Search, KeyRound, ScanEye} from "lucide-react"
 
 import {
   Sidebar,
@@ -190,7 +190,7 @@ export function DashboardSidebar() {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        {userRole === 'participant' && (
+                        {/* {userRole === 'participant' && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/tenders/registered")}>
                               <Link to="/tenders/registered">
@@ -199,7 +199,7 @@ export function DashboardSidebar() {
                               </Link>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
-                        )}
+                        )} */}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>

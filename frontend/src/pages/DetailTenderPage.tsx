@@ -4,15 +4,20 @@ import { useParams, Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, User, Clock, ArrowLeft, Trophy } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ParticipantsList } from "@/components/ParticipantsList"
 import { DocumentList } from "@/components/DocumentList"
 import { RequestTenderAccess } from "@/components/RequestTenderAccess"
-import { getTenderById } from "@/lib/api_the_graph" 
-import { Document, Tender } from "@/lib/types"
+import { getTenderById, getTenderMetadata } from "@/lib/api_the_graph" 
+import { Document, Tender, TenderMetadata } from "@/lib/types"
 import { formatDate, calculateTimeRemaining, showPassphraseDialog } from "@/lib/utils"
 import { useAccount } from "wagmi";
 import { useTenderManager } from '@/hooks/useContracts';
 import { getDocumentStoreContract, getTenderManagerContract } from "@/lib/contracts"
+import { addTenderMetadata } from "@/lib/api_contract"
+import { toast } from "react-toastify"
 
 export default function TenderDetailPage() {
   const { id } = useParams()
@@ -31,7 +36,19 @@ export default function TenderDetailPage() {
   const isWinner = address?.toLowerCase() === winnerAddress?.toLowerCase()
   const isActive = tender ? new Date(Number(tender.endDate) * 1000).getTime() > Date.now() : false
   const [isThirdParty, setIsThirdParty] = useState(false);
+  const [tenderMetadata, setTenderMetadata] = useState<TenderMetadata | null>(null);
+  const [showMetadataDialog, setShowMetadataDialog] = useState(false);
+  const [metadataForm, setMetadataForm] = useState<TenderMetadata>({
+    name: "",
+    department: "",
+    projectScope: "",
+    budget: "",
+    qualificationRequirements: "",
+    submissionGuidelines: "",
+    officialCommunicationChannel: ""
+  });
   const userRole = JSON.parse(localStorage.getItem("user") || '{}').role;
+
 
   useEffect(() => {
     const fetchTender = async () => {
@@ -98,9 +115,18 @@ export default function TenderDetailPage() {
       setIsThirdParty(isThirdParty);
     }
 
+    const loadMetadata = async () => {
+      const metadata = await getTenderMetadata(id as string);
+      console.log("metadata", metadata);
+      if (metadata) {
+        setTenderMetadata(metadata);
+      }
+    }
+
     checkThirdParty();
     fetchTender()
     fetchParticipants();
+    loadMetadata();
   }, [id])
 
   if (loading) {
@@ -117,6 +143,50 @@ export default function TenderDetailPage() {
         <div className="text-center text-red-500">{error || "Tender not found"}</div>
       </div>
     )
+  }
+
+  const handleAddMetadata = async () => {
+    setShowMetadataDialog(true);
+  }
+
+  const handleSubmitMetadata = async () => {
+    try {
+      console.log("Submitting metadata for tender:", id, metadataForm);
+
+      const res = await addTenderMetadata(id as string, metadataForm);
+      
+      if (res.success) {
+        toast.success(res.message);
+        setShowMetadataDialog(false);
+        setTenderMetadata(metadataForm);
+      }
+      
+      setMetadataForm({
+        name: "",
+        department: "",
+        projectScope: "",
+        budget: "",
+        qualificationRequirements: "",
+        submissionGuidelines: "",
+        officialCommunicationChannel: ""
+      });
+    } catch (error) {
+      console.error("Error adding metadata:", error);
+      alert("Failed to add metadata");
+    }
+  }
+
+  const handleCancelMetadata = () => {
+    setShowMetadataDialog(false);
+    setMetadataForm({
+      name: "",
+      department: "",
+      projectScope: "",
+      budget: "",
+      qualificationRequirements: "",
+      submissionGuidelines: "",
+      officialCommunicationChannel: ""
+    });
   }
 
   return (
@@ -163,10 +233,56 @@ export default function TenderDetailPage() {
             <span>{calculateTimeRemaining(tender.endDate)}</span>
           </div>
 
-          {/* <div className="border-t pt-4">
-            <h2 className="text-lg font-semibold mb-2">Description</h2>
-            <p className="text-sm text-muted-foreground whitespace-pre-line">{tender.description}</p>
-          </div> */}
+          <div className="border-t pt-4">
+          <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">Tender Details</h2>
+              {isOwner && (
+                <button
+                  onClick={handleAddMetadata}
+                  className="text-sm bg-primary text-white px-3 py-1.5 rounded hover:bg-primary/90 transition"
+                >
+                  Update Tender Details
+                </button>
+              )}
+            </div>
+            </div>
+
+          {/* Tender Metadata Section */}
+          {tenderMetadata ? (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-md font-medium text-gray-900 mb-2">Department</h3>
+                  <p className="text-sm text-gray-700">{tenderMetadata.department}</p>
+                </div>
+                
+                <div>
+                  <h3 className="text-md font-medium text-gray-900 mb-2">Project Scope & Budget</h3>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{tenderMetadata.projectScope}</p>
+                </div>
+
+                <div>
+                  <h3 className="text-md font-medium text-gray-900 mb-2">Budget</h3>
+                  <p className="text-sm text-gray-700">{tenderMetadata.budget}</p>
+                </div>
+                
+                <div>
+                  <h3 className="text-md font-medium text-gray-900 mb-2">Qualification Requirements</h3>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{tenderMetadata.qualificationRequirements}</p>
+                </div>
+                
+                <div>
+                  <h3 className="text-md font-medium text-gray-900 mb-2">Submission Guidelines</h3>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{tenderMetadata.submissionGuidelines}</p>
+                </div>
+                
+                <div>
+                  <h3 className="text-md font-medium text-gray-900 mb-2">Official Communication Channel</h3>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{tenderMetadata.officialCommunicationChannel}</p>
+                </div>
+              </div>
+          ) : (
+           <> </>
+          )}
 
           <div className="border-t pt-4">
             <h2 className="text-lg font-semibold mb-2">Tender Information Documents</h2>
@@ -279,6 +395,109 @@ export default function TenderDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Metadata Dialog */}
+      <Dialog open={showMetadataDialog} onOpenChange={setShowMetadataDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Update Tender Metadata</DialogTitle>
+            <DialogDescription>
+              Add or update the tender details and requirements.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={metadataForm.name}
+                onChange={(e) => setMetadataForm({...metadataForm, name: e.target.value})}
+                placeholder="Enter procuring organization name"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="department">Department</Label>
+              <Input
+                id="department"
+                value={metadataForm.department}
+                onChange={(e) => setMetadataForm({...metadataForm, department: e.target.value})}
+                placeholder="Enter department name"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="projectScope">Project Scope</Label>
+              <textarea
+                id="projectScope"
+                value={metadataForm.projectScope}
+                onChange={(e) => setMetadataForm({...metadataForm, projectScope: e.target.value})}
+                placeholder="Describe the project scope"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="budget">Budget</Label>
+              <Input
+                id="budget"
+                value={metadataForm.budget}
+                onChange={(e) => setMetadataForm({...metadataForm, budget: e.target.value})}
+                placeholder="Enter budget amount"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="qualificationRequirements">Qualification Requirements</Label>
+              <textarea
+                id="qualificationRequirements"
+                value={metadataForm.qualificationRequirements}
+                onChange={(e) => setMetadataForm({...metadataForm, qualificationRequirements: e.target.value})}
+                placeholder="List qualification requirements"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="submissionGuidelines">Submission Guidelines</Label>
+              <textarea
+                id="submissionGuidelines"
+                value={metadataForm.submissionGuidelines}
+                onChange={(e) => setMetadataForm({...metadataForm, submissionGuidelines: e.target.value})}
+                placeholder="Enter submission guidelines"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="officialCommunicationChannel">Official Communication Channel</Label>
+              <textarea
+                id="officialCommunicationChannel"
+                value={metadataForm.officialCommunicationChannel}
+                onChange={(e) => setMetadataForm({...metadataForm, officialCommunicationChannel: e.target.value})}
+                placeholder="Enter official communication details"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <button
+              onClick={handleCancelMetadata}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmitMetadata}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition"
+            >
+              Submit
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -16,6 +16,16 @@ export type Document = {
     name: string
   }
 
+  export interface TenderMetadata {
+    name: string;
+    department: string;
+    projectScope: string;
+    budget: string;
+    qualificationRequirements: string;
+    submissionGuidelines: string;
+    officialCommunicationChannel: string;
+  }
+
   export interface Tender {
     tenderId: string;
     owner: string;

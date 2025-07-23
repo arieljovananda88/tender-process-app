@@ -403,6 +403,42 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
     return response.data.data.requestAccessTenders.length;
   }
 
+  export async function getTenderMetadata(tenderId: string): Promise<any> {
+    const response = await axios.post(
+      import.meta.env.VITE_THE_GRAPH_TENDER_API,
+      {
+        query: createTenderMetadata(tenderId),
+        operationName: 'Subgraphs',
+        variables: {}
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+        }
+      }
+    )
+    return response.data.data.tenderMetadataAddeds[0];
+  }
+
+  const createTenderMetadata = (tenderId: string) => {
+    return `
+      query Subgraphs {
+        tenderMetadataAddeds(first: 1, orderBy: blockTimestamp, orderDirection: desc, where: {tenderId: "${tenderId}"}) {
+            id
+            tenderId
+            name
+            department
+            budget
+            officialCommunicationChannel
+            projectScope
+            qualificationRequirements
+            submissionGuidelines
+        }
+      }
+    `
+  }
+
   const createDocumentByCidsQuery = (cids: string[]) => {
     let condition = ""
     for (const cid of cids) {

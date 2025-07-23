@@ -1,6 +1,6 @@
 import { encryptWithPublicKey, initIPFSClient, uploadToIPFSClientEncrypted, generateTenderId, encryptDocumentMetadata } from './utils';
 import { getPublicKeyStorageContract, getTenderManagerContract, getAccessManagerContract, getDocumentStoreContract } from './contracts';
-import { CreateTenderResponse, UploadDocumentResponse, SelectWinnerResponse, RequestAccessResponse, RegisterResponse, UploadInfoDocumentParams, UploadDocumentParams, SelectWinnerParticipant } from './types';
+import { CreateTenderResponse, UploadDocumentResponse, SelectWinnerResponse, RequestAccessResponse, RegisterResponse, UploadInfoDocumentParams, UploadDocumentParams, SelectWinnerParticipant, TenderMetadata } from './types';
 import { getTenderKey } from './api_the_graph';
 import { decryptTenderKey } from './utils';
 
@@ -340,5 +340,22 @@ export async function grantTenderAccess(expectedTenderId: string, receiver: stri
   } catch (error: any) {
     console.error("Grant tender access error:", error);
     throw new Error(`Failed to grant tender access: ${error.message}`);
+  }
+}
+
+export async function addTenderMetadata(tenderId: string, metadata: TenderMetadata): Promise<any> {
+  try {
+    const contract = await getTenderManagerContract();
+
+    const tx = await contract.addTenderMetadata(tenderId, metadata.name, metadata.department, metadata.projectScope, metadata.budget, metadata.qualificationRequirements, metadata.submissionGuidelines, metadata.officialCommunicationChannel);
+    await tx.wait();
+
+    return {
+      success: true,
+      message: "Tender metadata added successfully"
+    };
+  } catch (error: any) {
+    console.error("Add tender metadata error:", error);
+    throw new Error(`Failed to add tender metadata: ${error.message}`);
   }
 }
