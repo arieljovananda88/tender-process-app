@@ -7,16 +7,17 @@ import { Calendar, User, Clock, ArrowLeft, Trophy } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { ParticipantsList } from "@/components/ParticipantsList"
 import { DocumentList } from "@/components/DocumentList"
 import { RequestTenderAccess } from "@/components/RequestTenderAccess"
-import { getTenderById, getTenderMetadata } from "@/lib/api_the_graph" 
-import { Document, Tender, TenderMetadata } from "@/lib/types"
-import { formatDate, calculateTimeRemaining, showPassphraseDialog } from "@/lib/utils"
+import { getParticipantTenderMetadata, getTenderById, getTenderMetadata } from "@/lib/api_the_graph" 
+import { Document, ParticipantTenderMetadata, Tender, TenderMetadata } from "@/lib/types"
+import { formatDate, calculateTimeRemaining, showPassphraseDialog, decryptParticipantTenderMetadataKey, fetchAndDecryptMetadata } from "@/lib/utils"
 import { useAccount } from "wagmi";
 import { useTenderManager } from '@/hooks/useContracts';
 import { getDocumentStoreContract, getTenderManagerContract } from "@/lib/contracts"
-import { addTenderMetadata } from "@/lib/api_contract"
+import { addParticipantTenderMetadata, addTenderMetadata } from "@/lib/api_contract"
 import { toast } from "react-toastify"
 
 export default function TenderDetailPage() {
@@ -37,7 +38,9 @@ export default function TenderDetailPage() {
   const isActive = tender ? new Date(Number(tender.endDate) * 1000).getTime() > Date.now() : false
   const [isThirdParty, setIsThirdParty] = useState(false);
   const [tenderMetadata, setTenderMetadata] = useState<TenderMetadata | null>(null);
+  const [participantMetadata, setParticipantMetadata] = useState<ParticipantTenderMetadata | null>(null);
   const [showMetadataDialog, setShowMetadataDialog] = useState(false);
+  const [showParticipantMetadataDialog, setShowParticipantMetadataDialog] = useState(false);
   const [metadataForm, setMetadataForm] = useState<TenderMetadata>({
     name: "",
     department: "",
@@ -45,7 +48,19 @@ export default function TenderDetailPage() {
     budget: "",
     qualificationRequirements: "",
     submissionGuidelines: "",
+    extraInformation: "",
     officialCommunicationChannel: ""
+  });
+  const [participantMetadataForm, setParticipantMetadataForm] = useState<ParticipantTenderMetadata>({
+    businessName: "",
+    businessId: "",
+    taxId: "",
+    location: "",
+    proposedDuration: "",
+    teamOrResource: "",
+    highLevelApproach: "",
+    extraInformation: "",
+    pointOfContract: ""
   });
   const userRole = JSON.parse(localStorage.getItem("user") || '{}').role;
 
@@ -117,9 +132,26 @@ export default function TenderDetailPage() {
 
     const loadMetadata = async () => {
       const metadata = await getTenderMetadata(id as string);
-      console.log("metadata", metadata);
       if (metadata) {
         setTenderMetadata(metadata);
+        setMetadataForm(metadata);
+      }
+    }
+
+    const loadParticipantMetadata = async () => {
+      const response = await getParticipantTenderMetadata(address as string, address as string);
+      const passphrase = await showPassphraseDialog();
+      if (!passphrase) {
+        return;
+      }
+      const result = await decryptParticipantTenderMetadataKey(response, address as string, passphrase, id as string);
+
+      if (result && result.cid) {
+        const metadata = await fetchAndDecryptMetadata(result.cid, result.symmetricKey, result.iv);
+        if (metadata) {
+          setParticipantMetadata(metadata);
+          setParticipantMetadataForm(metadata);
+        }
       }
     }
 
@@ -127,6 +159,7 @@ export default function TenderDetailPage() {
     fetchTender()
     fetchParticipants();
     loadMetadata();
+    loadParticipantMetadata();
   }, [id])
 
   if (loading) {
@@ -149,6 +182,10 @@ export default function TenderDetailPage() {
     setShowMetadataDialog(true);
   }
 
+  const handleAddParticipantMetadata = async () => {
+    setShowParticipantMetadataDialog(true);
+  }
+
   const handleSubmitMetadata = async () => {
     try {
       console.log("Submitting metadata for tender:", id, metadataForm);
@@ -168,6 +205,7 @@ export default function TenderDetailPage() {
         budget: "",
         qualificationRequirements: "",
         submissionGuidelines: "",
+        extraInformation: "",
         officialCommunicationChannel: ""
       });
     } catch (error) {
@@ -185,13 +223,59 @@ export default function TenderDetailPage() {
       budget: "",
       qualificationRequirements: "",
       submissionGuidelines: "",
+      extraInformation: "",
       officialCommunicationChannel: ""
     });
   }
 
+  const handleSubmitParticipantMetadata = async () => {
+    try {
+      console.log("Submitting metadata for tender:", id, participantMetadataForm);
+
+      const res = await addParticipantTenderMetadata(id as string, participantMetadataForm, address as string, tender.owner as string);
+      
+      if (res.success) {
+        toast.success(res.message);
+        setShowParticipantMetadataDialog(false);
+        setParticipantMetadataForm(participantMetadataForm);
+        setParticipantMetadata(participantMetadataForm);
+      }
+      
+      setParticipantMetadataForm({
+        businessName: "",
+        businessId: "",
+        taxId: "",
+        location: "",
+        proposedDuration: "",
+        teamOrResource: "",
+        highLevelApproach: "",
+        extraInformation: "",
+        pointOfContract: ""
+      });
+    } catch (error) {
+      console.error("Error adding metadata:", error);
+      alert("Failed to add metadata");
+    }
+  }
+
+  const handleCancelParticipantMetadata = () => {
+    setShowParticipantMetadataDialog(false);
+    setParticipantMetadataForm({
+      businessName: "",
+      businessId: "",
+      taxId: "",
+      location: "",
+      proposedDuration: "",
+      teamOrResource: "",
+      highLevelApproach: "",
+      extraInformation: "",
+      pointOfContract: ""
+    });
+  }
+
   return (
-    <div className="container mx-auto py-6 px-4 max-w-[1920px]">
-      <div className="mb-6">
+    <div className="container mx-auto py-6 px-4 max-w-[1920px] h-screen flex flex-col">
+      <div className="mb-6 flex-shrink-0">
         <Link
           to="/tenders/search"
           className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -201,10 +285,10 @@ export default function TenderDetailPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 flex-1 min-h-0">
 
         {/* Main content - center */}
-        <div className={`space-y-6 xl:col-span-8`}>
+        <div className={`space-y-6 xl:col-span-8 overflow-y-auto pr-4`}>
           <div className="flex justify-between items-start">
             <h1 className="text-2xl font-bold">{tender.name}</h1>
             <Badge className={isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
@@ -234,7 +318,7 @@ export default function TenderDetailPage() {
           </div>
 
           <div className="border-t pt-4">
-          <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Tender Details</h2>
               {isOwner && (
                 <button
@@ -245,40 +329,59 @@ export default function TenderDetailPage() {
                 </button>
               )}
             </div>
-            </div>
+          </div>
 
           {/* Tender Metadata Section */}
           {tenderMetadata ? (
               <div className="space-y-4">
+                {tenderMetadata.name && (
+                <div>
+                  <h3 className="text-md font-medium text-gray-900 mb-2">Procuring Entity</h3>
+                  <p className="text-sm text-gray-700">{tenderMetadata.name}</p>
+                </div>
+                )}
+
+                {tenderMetadata.department && (
                 <div>
                   <h3 className="text-md font-medium text-gray-900 mb-2">Department</h3>
                   <p className="text-sm text-gray-700">{tenderMetadata.department}</p>
                 </div>
-                
+                )}
+
+                {tenderMetadata.projectScope && (
                 <div>
                   <h3 className="text-md font-medium text-gray-900 mb-2">Project Scope & Budget</h3>
                   <p className="text-sm text-gray-700 whitespace-pre-line">{tenderMetadata.projectScope}</p>
                 </div>
+                )}
 
+                {tenderMetadata.budget && (
                 <div>
                   <h3 className="text-md font-medium text-gray-900 mb-2">Budget</h3>
                   <p className="text-sm text-gray-700">{tenderMetadata.budget}</p>
                 </div>
-                
+                )}
+
+                {tenderMetadata.qualificationRequirements && (
                 <div>
                   <h3 className="text-md font-medium text-gray-900 mb-2">Qualification Requirements</h3>
                   <p className="text-sm text-gray-700 whitespace-pre-line">{tenderMetadata.qualificationRequirements}</p>
                 </div>
+                )}
                 
+                {tenderMetadata.submissionGuidelines && (
                 <div>
                   <h3 className="text-md font-medium text-gray-900 mb-2">Submission Guidelines</h3>
                   <p className="text-sm text-gray-700 whitespace-pre-line">{tenderMetadata.submissionGuidelines}</p>
                 </div>
+                )}
                 
+                {tenderMetadata.officialCommunicationChannel && (
                 <div>
                   <h3 className="text-md font-medium text-gray-900 mb-2">Official Communication Channel</h3>
                   <p className="text-sm text-gray-700 whitespace-pre-line">{tenderMetadata.officialCommunicationChannel}</p>
                 </div>
+                )}
               </div>
           ) : (
            <> </>
@@ -299,7 +402,7 @@ export default function TenderDetailPage() {
         </div>
 
         {/* Right sidebar - Participants (for owners) or Application status (for non-owners) */}
-        <div className="xl:col-span-4 space-y-6">
+        <div className="xl:col-span-4 space-y-6 overflow-y-auto pl-4">
           {isOwner || userRole === "third_party" ? (
             // Participants section for tender owner
             <div>
@@ -368,18 +471,103 @@ export default function TenderDetailPage() {
               </Card>
 
                 {!winnerAddress ? (
-                  <div className="space-y-4">
-                    <h2 className="text-lg font-semibold mb-2">Your Bid Documents</h2>
-                    <DocumentList
-                      typeOfFile="Tender"
-                      documents={tenderDocuments}
-                      isRegistered={isRegistered}
-                      isActive={isActive}
-                      iconSize={8}
-                      textSize="sm"
-                      canUpload={true}
-                    />
-                  </div>
+                  <>
+                  {userRole === "participant" && (
+                    <div className="border-t pt-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold">Your Details</h2>
+                        {userRole === "participant" && (
+                          <button
+                            onClick={handleAddParticipantMetadata}
+                            className="text-sm bg-primary text-white px-3 py-1.5 rounded hover:bg-primary/90 transition"
+                          >
+                            Update Your Details
+                          </button>
+                        )}
+                      </div>
+                      {participantMetadata ? (
+                        <div className="space-y-4">
+                          {participantMetadata.businessName && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">Business Name</h3>
+                            <p className="text-sm text-gray-700">{participantMetadata.businessName}</p>
+                          </div>
+                          )}
+
+                          {participantMetadata.businessId && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">Business ID</h3>
+                            <p className="text-sm text-gray-700">{participantMetadata.businessId}</p>
+                          </div>
+                          )}
+
+                          {participantMetadata.taxId && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">Tax ID</h3>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.taxId}</p>
+                          </div>
+                          )}
+
+                          {participantMetadata.location && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">Location</h3>
+                            <p className="text-sm text-gray-700">{participantMetadata.location}</p>
+                          </div>
+                          )}
+
+                          {participantMetadata.proposedDuration && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">Proposed Duration</h3>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.proposedDuration}</p>
+                          </div>
+                          )}
+                          
+                          {participantMetadata.teamOrResource && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">Team Size or Resource Commitment</h3>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.teamOrResource}</p>
+                          </div>
+                          )}
+                          
+                          {participantMetadata.highLevelApproach && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">High Level Approach</h3>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.highLevelApproach}</p>
+                          </div>
+                          )}
+
+                          {participantMetadata.extraInformation && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">Extra Information</h3>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.extraInformation}</p>
+                          </div>
+                          )}
+
+                          {participantMetadata.pointOfContract && (
+                          <div>
+                            <h3 className="text-md font-medium text-gray-900 mb-2">Point of Contract</h3>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.pointOfContract}</p>
+                          </div>
+                          )}
+                          
+                        </div>
+                    ) : (
+                        <></>
+                    )}
+                    </div>
+                  )}
+                  <div className="border-t"></div>
+                  <h2 className="text-lg font-semibold mb-2">Your Bid Documents</h2>
+                  <DocumentList
+                    typeOfFile="Tender"
+                    documents={tenderDocuments}
+                    isRegistered={isRegistered}
+                    isActive={isActive}
+                    iconSize={8}
+                    textSize="sm"
+                    canUpload={true}
+                  />
+                  </>
                 ) : (
                   <>
                   <h2 className="text-lg font-semibold mb-3">Final Participants</h2>
@@ -398,22 +586,22 @@ export default function TenderDetailPage() {
 
       {/* Metadata Dialog */}
       <Dialog open={showMetadataDialog} onOpenChange={setShowMetadataDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>Update Tender Metadata</DialogTitle>
             <DialogDescription>
               Add or update the tender details and requirements.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1">
             <div>
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Procuring Entity</Label>
               <Input
                 id="name"
                 value={metadataForm.name}
                 onChange={(e) => setMetadataForm({...metadataForm, name: e.target.value})}
-                placeholder="Enter procuring organization name"
+                placeholder="Enter procuring entity name"
               />
             </div>
             
@@ -429,7 +617,7 @@ export default function TenderDetailPage() {
             
             <div>
               <Label htmlFor="projectScope">Project Scope</Label>
-              <textarea
+              <Textarea
                 id="projectScope"
                 value={metadataForm.projectScope}
                 onChange={(e) => setMetadataForm({...metadataForm, projectScope: e.target.value})}
@@ -450,7 +638,7 @@ export default function TenderDetailPage() {
             
             <div>
               <Label htmlFor="qualificationRequirements">Qualification Requirements</Label>
-              <textarea
+              <Textarea
                 id="qualificationRequirements"
                 value={metadataForm.qualificationRequirements}
                 onChange={(e) => setMetadataForm({...metadataForm, qualificationRequirements: e.target.value})}
@@ -461,7 +649,7 @@ export default function TenderDetailPage() {
             
             <div>
               <Label htmlFor="submissionGuidelines">Submission Guidelines</Label>
-              <textarea
+              <Textarea
                 id="submissionGuidelines"
                 value={metadataForm.submissionGuidelines}
                 onChange={(e) => setMetadataForm({...metadataForm, submissionGuidelines: e.target.value})}
@@ -472,7 +660,7 @@ export default function TenderDetailPage() {
             
             <div>
               <Label htmlFor="officialCommunicationChannel">Official Communication Channel</Label>
-              <textarea
+              <Textarea
                 id="officialCommunicationChannel"
                 value={metadataForm.officialCommunicationChannel}
                 onChange={(e) => setMetadataForm({...metadataForm, officialCommunicationChannel: e.target.value})}
@@ -482,7 +670,7 @@ export default function TenderDetailPage() {
             </div>
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0">
             <button
               onClick={handleCancelMetadata}
               className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition"
@@ -491,6 +679,135 @@ export default function TenderDetailPage() {
             </button>
             <button
               onClick={handleSubmitMetadata}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition"
+            >
+              Submit
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Metadata Dialog */}
+      <Dialog open={showParticipantMetadataDialog} onOpenChange={setShowParticipantMetadataDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Update Participant Metadata</DialogTitle>
+            <DialogDescription>
+              Add or update the participant details and requirements.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 overflow-y-auto flex-1">
+            <div>
+              <Label htmlFor="businessName">Business Name</Label>
+              <Input
+                id="businessName"
+                value={participantMetadataForm.businessName}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, businessName: e.target.value})}
+                placeholder="Enter business name"
+                className="w-full p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="businessId">Business ID</Label>
+              <Input
+                id="businessId"
+                value={participantMetadataForm.businessId}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, businessId: e.target.value})}
+                placeholder="Enter business ID"
+                className="w-full p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="taxId">Tax ID</Label>
+              <Textarea
+                id="taxId"
+                value={participantMetadataForm.taxId}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, taxId: e.target.value})}
+                placeholder="Enter tax ID"
+                className="w-full p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={participantMetadataForm.location}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, location: e.target.value})}
+                placeholder="Enter location"
+                className="w-full p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="proposedDuration">Proposed Duration</Label>
+              <Textarea
+                id="proposedDuration"
+                value={participantMetadataForm.proposedDuration}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, proposedDuration: e.target.value})}
+                placeholder="Enter proposed duration"
+                className="w-full p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="teamOrResource">Team Size or Resource Commitment</Label>
+              <Textarea
+                id="teamOrResource"
+                value={participantMetadataForm.teamOrResource}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, teamOrResource: e.target.value})}
+                placeholder="Enter team size or resource commitment"
+                className="w-full p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="highLevelApproach">High Level Approach</Label>
+              <Textarea
+                id="highLevelApproach"
+                value={participantMetadataForm.highLevelApproach}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, highLevelApproach: e.target.value})}
+                placeholder="Enter high level approach to the tender"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="extraInformation">Extra Information</Label>
+              <Textarea
+                id="extraInformation"
+                value={participantMetadataForm.extraInformation}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, extraInformation: e.target.value})}
+                placeholder="Enter any extra information"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="pointOfContract">Point of Contract</Label>
+              <Textarea
+                id="pointOfContract"
+                value={participantMetadataForm.pointOfContract}
+                onChange={(e) => setParticipantMetadataForm({...participantMetadataForm, pointOfContract: e.target.value})}
+                placeholder="Enter point of contract"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md resize-none"
+              />
+            </div>
+            
+          </div>
+          
+          <DialogFooter className="flex-shrink-0">
+            <button
+              onClick={handleCancelParticipantMetadata}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmitParticipantMetadata}
               className="px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition"
             >
               Submit

@@ -1,8 +1,9 @@
-import { encryptWithPublicKey, initIPFSClient, uploadToIPFSClientEncrypted, generateTenderId, encryptDocumentMetadata } from './utils';
+import { encryptWithPublicKey, initIPFSClient, uploadToIPFSClientEncrypted, generateTenderId, encryptDocumentMetadata, encryptAndUploadMetadataToIPFS, encryptWithSymmetricKey, decryptParticipantTenderMetadataKey } from './utils';
 import { getPublicKeyStorageContract, getTenderManagerContract, getAccessManagerContract, getDocumentStoreContract } from './contracts';
-import { CreateTenderResponse, UploadDocumentResponse, SelectWinnerResponse, RequestAccessResponse, RegisterResponse, UploadInfoDocumentParams, UploadDocumentParams, SelectWinnerParticipant, TenderMetadata } from './types';
-import { getTenderKey } from './api_the_graph';
+import { CreateTenderResponse, UploadDocumentResponse, SelectWinnerResponse, RequestAccessResponse, RegisterResponse, UploadInfoDocumentParams, UploadDocumentParams, SelectWinnerParticipant, TenderMetadata, ParticipantTenderMetadata } from './types';
+import { getParticipantTenderMetadata, getTenderKey } from './api_the_graph';
 import { decryptTenderKey } from './utils';
+import { useTenderManager } from "@/hooks/useContracts"
 
 export async function createTender( 
   name: string,
@@ -315,6 +316,7 @@ export async function requestAccess(receiver: string, tenderId: string, cid: str
 }
 
 export async function grantTenderAccess(expectedTenderId: string, receiver: string, passphrase: string, tenderOwner: string, ): Promise<RequestAccessResponse> {
+  const { parseParticipants } = useTenderManager() 
   try {
     const accessManagerContract = await getAccessManagerContract();
     const tenderManagerContract = await getTenderManagerContract();
@@ -332,6 +334,42 @@ export async function grantTenderAccess(expectedTenderId: string, receiver: stri
 
     const grantTenderAccessTx = await accessManagerContract.emitTenderKey(tenderKeys);
     await grantTenderAccessTx.wait();
+
+    const result = await parseParticipants(tenderOwner as string, passphrase, expectedTenderId);
+
+    if(result){
+      const metadataKeys = []
+      for (const participant of result.participants) {
+        const response = await getParticipantTenderMetadata(tenderOwner as string, participant.address as string);
+
+        const result = await decryptParticipantTenderMetadataKey(response, tenderOwner as string, passphrase, expectedTenderId);
+
+        if(!result){
+          continue
+        }
+
+        const encryptedKey = await encryptWithPublicKey(result.symmetricKey, receiverJwk)
+        const encryptedTenderId = await encryptWithSymmetricKey(expectedTenderId, result.symmetricKey, result.iv)
+
+        metadataKeys.push(
+          {
+            receiver: receiver,
+            participantAddress: participant.address,
+            encryptedKey: encryptedKey,
+            iv: result.iv,
+            cid: result.cid,
+            encryptedTenderId: encryptedTenderId,
+          }
+        )
+      }
+
+
+
+      if (metadataKeys.length > 0) {
+        const participantMetatdataTx = await accessManagerContract.emitParticipantTenderMetadataKey(metadataKeys);
+        await participantMetatdataTx.wait();
+      }
+    }
 
     return {
       success: true,
@@ -357,5 +395,80 @@ export async function addTenderMetadata(tenderId: string, metadata: TenderMetada
   } catch (error: any) {
     console.error("Add tender metadata error:", error);
     throw new Error(`Failed to add tender metadata: ${error.message}`);
+  }
+}
+
+export async function addParticipantTenderMetadata(tenderId: string, metadata: ParticipantTenderMetadata, address: string, ownerAddress: string): Promise<any> {
+  try {
+    const accessManagerContract = await getAccessManagerContract();
+    const publicKeyStorageContract = await getPublicKeyStorageContract();
+    const tenderManagerContract = await getTenderManagerContract();
+
+    const participantPublicKeyInContract = await publicKeyStorageContract.getPublicKey(address);
+    const participantJwk = JSON.parse(participantPublicKeyInContract);
+
+    const ownerPublicKeyInContract = await publicKeyStorageContract.getPublicKey(ownerAddress);
+    const ownerJwk = JSON.parse(ownerPublicKeyInContract);
+
+    const result = await encryptAndUploadMetadataToIPFS(tenderId, metadata);
+    const encryptedTenderId = await encryptWithSymmetricKey(tenderId, result.keyString, result.iv);
+
+    const participantEncryptedMetadataKey = await encryptWithPublicKey(result.keyString, participantJwk)
+    const ownerEncryptedMetadataKey = await encryptWithPublicKey(result.keyString, ownerJwk)
+
+    const thirdPartyParticipants = await tenderManagerContract.getThirdPartyParticipantsArray(tenderId);
+
+    const metadataKeys = []
+
+    metadataKeys.push(
+      {
+        receiver: address,
+        participantAddress: address,
+        encryptedKey: participantEncryptedMetadataKey,
+        iv: result.iv,
+        cid: result.cid,
+        encryptedTenderId: encryptedTenderId,
+      }
+    )
+
+    metadataKeys.push(
+      {
+        receiver: ownerAddress,
+        participantAddress: address,
+        encryptedKey: ownerEncryptedMetadataKey,
+        iv: result.iv,
+        cid: result.cid,
+        encryptedTenderId: encryptedTenderId,
+      }
+    )
+
+    for (const thirdPartyParticipant of thirdPartyParticipants) {
+      const thirdPartyPublicKey =  await publicKeyStorageContract.getPublicKey(thirdPartyParticipant); 
+      const thirdPartyJwk = JSON.parse(thirdPartyPublicKey);
+      const thirdPartyEncryptedTenderKey = await encryptWithPublicKey(result.keyString, thirdPartyJwk)
+
+      metadataKeys.push(
+        {
+          receiver: thirdPartyParticipant,
+          participantAddress: address,
+          encryptedKey: thirdPartyEncryptedTenderKey,
+          iv: result.iv,
+          cid: result.cid,
+          encryptedTenderId: encryptedTenderId,
+        }
+      )
+    }
+
+
+    const tx = await accessManagerContract.emitParticipantTenderMetadataKey(metadataKeys);
+    await tx.wait();
+
+    return {
+      success: true,
+      message: "Participant metadata added and uploaded to IPFS successfully",
+    };
+  } catch (error: any) {
+    console.error("Add participant metadata error:", error);
+    throw new Error(`Failed to add participant metadata: ${error.message}`);
   }
 }

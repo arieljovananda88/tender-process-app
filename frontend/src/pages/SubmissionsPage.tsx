@@ -3,16 +3,16 @@
 import { useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, User, FileText, File, FileImage, FileSpreadsheet, Loader2 } from "lucide-react"
+import { ArrowLeft, User, FileText, File, FileImage, FileSpreadsheet, Loader2, ChevronDown, ChevronRight } from "lucide-react"
 import { Link } from "react-router-dom"
-import { downloadEncryptedFileWithDialog, formatDate, showPassphraseDialog } from "@/lib/utils"
+import { downloadEncryptedFileWithDialog, formatDate, showPassphraseDialog, decryptParticipantTenderMetadataKey, fetchAndDecryptMetadata } from "@/lib/utils"
 import { useDocumentStore, useTenderManager } from "@/hooks/useContracts"
 import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
 import { toast } from "react-toastify"
 import { requestAccess, selectWinner } from "@/lib/api_contract"
-import { getTenderById } from "@/lib/api_the_graph"
-import { Tender } from "@/lib/types"
+import { getTenderById, getParticipantTenderMetadata } from "@/lib/api_the_graph"
+import { Tender, ParticipantTenderMetadata } from "@/lib/types"
 import { Document } from "@/lib/types"
 import {
   Dialog,
@@ -22,6 +22,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { getTenderManagerContract } from "@/lib/contracts"
 
 interface Participant {
@@ -68,6 +73,8 @@ export default function ParticipantSubmissionsPage() {
   const [isChoosingWinner, setIsChoosingWinner] = useState(false)
   const [showAccessModal, setShowAccessModal] = useState(false)
   const [failedDocument, setFailedDocument] = useState<Document | null>(null)
+  const [participantMetadata, setParticipantMetadata] = useState<ParticipantTenderMetadata | null>(null)
+  const [isMetadataOpen, setIsMetadataOpen] = useState(false)
   
 
   useEffect(() => {
@@ -119,6 +126,34 @@ export default function ParticipantSubmissionsPage() {
         // Fetch tender details
         const tenderData = await getTenderById(tenderId);
         setTender(tenderData);
+
+        // Load participant metadata
+        const loadParticipantMetadata = async () => {
+          try {
+            const response = await getParticipantTenderMetadata(address as string, participantAddress);
+            console.log("Participant metadata response:", response);
+            
+            if (response && response.length > 0) {
+              const passphrase = await showPassphraseDialog();
+              if (!passphrase) {
+                return;
+              }
+              
+              const result = await decryptParticipantTenderMetadataKey(response, address as string, passphrase, tenderId);
+              
+              if (result && result.cid) {
+                const metadata = await fetchAndDecryptMetadata(result.cid, result.symmetricKey, result.iv);
+                if (metadata) {
+                  setParticipantMetadata(metadata);
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Error loading participant metadata:", error);
+          }
+        };
+
+        await loadParticipantMetadata();
       }
     };
     const fetchTender = async () => {
@@ -336,6 +371,94 @@ export default function ParticipantSubmissionsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Participant Metadata Section */}
+            {participantMetadata && (
+              <div className="mt-6 border-t pt-4">
+                <Collapsible open={isMetadataOpen} onOpenChange={setIsMetadataOpen}>
+                  <CollapsibleTrigger asChild>
+                    <button className="flex items-center justify-between w-full text-left hover:bg-gray-50 p-2 rounded-md transition-colors">
+                      <h3 className="text-lg font-semibold">Participant Details</h3>
+                      {isMetadataOpen ? (
+                        <ChevronDown className="h-5 w-5 text-gray-500" />
+                      ) : (
+                        <ChevronRight className="h-5 w-5 text-gray-500" />
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        {participantMetadata.businessName && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">Business Name</h4>
+                            <p className="text-sm text-gray-700">{participantMetadata.businessName}</p>
+                          </div>
+                        )}
+
+                        {participantMetadata.businessId && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">Business ID</h4>
+                            <p className="text-sm text-gray-700">{participantMetadata.businessId}</p>
+                          </div>
+                        )}
+
+                        {participantMetadata.taxId && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">Tax ID</h4>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.taxId}</p>
+                          </div>
+                        )}
+
+                        {participantMetadata.location && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">Location</h4>
+                            <p className="text-sm text-gray-700">{participantMetadata.location}</p>
+                          </div>
+                        )}
+
+                        {participantMetadata.proposedDuration && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">Proposed Duration</h4>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.proposedDuration}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-4">
+                        {participantMetadata.teamOrResource && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">Team Size or Resource Commitment</h4>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.teamOrResource}</p>
+                          </div>
+                        )}
+                        
+                        {participantMetadata.highLevelApproach && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">High Level Approach</h4>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.highLevelApproach}</p>
+                          </div>
+                        )}
+
+                        {participantMetadata.extraInformation && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">Extra Information</h4>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.extraInformation}</p>
+                          </div>
+                        )}
+
+                        {participantMetadata.pointOfContract && (
+                          <div>
+                            <h4 className="text-md font-medium text-gray-900 mb-2">Point of Contract</h4>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{participantMetadata.pointOfContract}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            )}
           </CardContent>
         </Card>
 

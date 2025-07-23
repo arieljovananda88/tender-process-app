@@ -43,6 +43,16 @@ contract AccessManager {
         string tenderId
     );
 
+    event EmitParticipantTenderMetadataKey(
+        address receiver,
+        address participantAddress,
+        string encryptedKey,
+        string iv,
+        string cid,
+        string encryptedTenderId
+    );
+
+
     event RequestAccessContent(
         address requester,
         address receiver,
@@ -71,6 +81,15 @@ contract AccessManager {
         string iv;
         string cid;
         string tenderId;
+    }
+
+    struct EmitParticipantTenderMetadataKeyInput {
+        address receiver;
+        address participantAddress;
+        string encryptedKey;
+        string iv;
+        string cid;
+        string encryptedTenderId;
     }
     
     struct RequestAccessInput {
@@ -131,6 +150,14 @@ contract AccessManager {
         tenderIvs[inputs[i].cid][inputs[i].receiver] = inputs[i].iv;
         
         emit EmitTenderKey(inputs[i].receiver, msg.sender, inputs[i].encryptedKey, inputs[i].iv, inputs[i].cid, inputs[i].tenderId);
+        }
+    }
+
+    function emitParticipantTenderMetadataKey(
+        EmitParticipantTenderMetadataKeyInput[] memory inputs
+    ) external {
+        for (uint i = 0; i < inputs.length; i++) {            
+            emit EmitParticipantTenderMetadataKey(inputs[i].receiver, inputs[i].participantAddress, inputs[i].encryptedKey, inputs[i].iv, inputs[i].cid, inputs[i].encryptedTenderId);
         }
     }
 

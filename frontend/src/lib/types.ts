@@ -23,7 +23,20 @@ export type Document = {
     budget: string;
     qualificationRequirements: string;
     submissionGuidelines: string;
+    extraInformation: string;
     officialCommunicationChannel: string;
+  }
+
+  export interface ParticipantTenderMetadata {
+    businessId: string;
+    businessName: string;
+    taxId: string;
+    location: string;
+    proposedDuration: string;
+    teamOrResource: string;
+    highLevelApproach: string;
+    extraInformation: string;
+    pointOfContract: string;
   }
 
   export interface Tender {

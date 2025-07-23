@@ -2,7 +2,7 @@ import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { AES, enc, lib, mode, pad } from "crypto-js";
 import { toast } from "react-toastify";
-import { Document } from "@/lib/types"
+import { Document, ParticipantTenderMetadata } from "@/lib/types"
 import { Buffer } from "buffer";
 import { create } from "ipfs-http-client";
 import { getAccessManagerContract } from "./contracts";
@@ -541,6 +541,36 @@ export async function encryptDocumentMetadata(tenderId: string, documentName: st
   }
 }
 
+export async function encryptAndUploadMetadataToIPFS(tenderId: string, metadata: ParticipantTenderMetadata) {
+  const symmetricKey = await generateSymmetricKey();
+  const keyString = Buffer.from(symmetricKey).toString('hex');
+  const iv = Buffer.from(window.crypto.getRandomValues(new Uint8Array(16))).toString('hex');
+  const metadataString = JSON.stringify(metadata);
+  
+  const encryptedMetadata = await encryptWithSymmetricKey(metadataString, keyString, iv);
+
+  const metadataToUpload = {
+    metadata: encryptedMetadata,
+  };
+  const metadataJson = JSON.stringify(metadataToUpload);
+  const metadataBlob = new Blob([metadataJson], { type: 'application/json' });
+  
+  // Upload to IPFS
+  const ipfs = await initIPFSClient();
+  const fileToUpload = {
+    path: `metadata_${tenderId}_${Date.now()}.json`,
+    content: metadataBlob
+  };
+
+  const result = await ipfs.add(fileToUpload);
+
+  return {
+    cid: result.cid.toString(),
+    keyString,
+    iv,
+  }
+}
+
 export async function decryptDocumentMetadata(tenderId: string, documentName: string, documentFormat: string, participantName: string, participantEmail: string, symmetricKey: string, iv: string) {  
   const decryptedDocumentName = await decryptWithSymmetricKey(documentName, symmetricKey, iv);
   const decryptedDocumentFormat = await decryptWithSymmetricKey(documentFormat, symmetricKey, iv);
@@ -656,4 +686,56 @@ export async function decryptTenderKey(response: any, tenderOwner: string, passp
     }
   }
   return tenderKeys
+}
+
+export async function decryptParticipantTenderMetadataKey(response: any, userAddress: string, passphrase: string, expectedTenderId: string) {
+  if (response && response.length > 0) {
+    for (const res of response) {
+      const symmetricKey = await decryptSymmetricKey(userAddress as string, passphrase, res.encryptedKey)
+      const tenderId = await decryptWithSymmetricKey(res.encryptedTenderId, symmetricKey, res.iv)
+      if (tenderId === expectedTenderId) {
+          return {
+            symmetricKey: symmetricKey,
+            cid: res.cid,
+            iv: res.iv,
+          }
+      }
+    }
+  }
+  return null
+}
+
+export async function fetchAndDecryptMetadata(cid: string, symmetricKey: string, iv: string): Promise<ParticipantTenderMetadata | null> {
+  try {
+    // Initialize IPFS client
+    const ipfs = await initIPFSClient();
+    
+    // Fetch the encrypted metadata from IPFS
+    const chunks = [];
+    for await (const chunk of ipfs.cat(cid)) {
+      chunks.push(chunk);
+    }
+    
+    // Combine chunks and convert to string
+    const encryptedData = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+    let offset = 0;
+    for (const chunk of chunks) {
+      encryptedData.set(chunk, offset);
+      offset += chunk.length;
+    }
+    
+    const encryptedJson = new TextDecoder().decode(encryptedData);
+    const metadataObject = JSON.parse(encryptedJson);
+    
+    // Decrypt the metadata field
+    const decryptedMetadataString = await decryptWithSymmetricKey(metadataObject.metadata, symmetricKey, iv);
+    const decryptedMetadata = JSON.parse(decryptedMetadataString);
+
+    console.log(decryptedMetadata)
+    
+    return decryptedMetadata;
+  } catch (error) {
+    console.error("Error fetching and decrypting metadata:", error);
+    return null;
+  }
 }

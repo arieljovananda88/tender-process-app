@@ -421,7 +421,41 @@ export async function getParticipants(id: string): Promise<ParticipantResponse[]
     return response.data.data.tenderMetadataAddeds[0];
   }
 
-  const createTenderMetadata = (tenderId: string) => {
+export async function getParticipantTenderMetadata(userAddress: string, participantAddress: string): Promise<any> {
+    const response = await axios.post(
+        import.meta.env.VITE_THE_GRAPH_ACCESS_MANAGER_API,
+        {
+            query: createParticipantTenderMetadata(userAddress, participantAddress),
+            operationName: 'Subgraphs',
+            variables: {}
+        },
+        {
+            headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_THE_GRAPH_API_KEY}`
+            }
+        }
+        )
+    return response.data.data.emitParticipantTenderMetadataKeys;
+}
+
+const createParticipantTenderMetadata = (receiver: string, participantAddress: string) => {
+    return `
+        query Subgraphs {
+            emitParticipantTenderMetadataKeys(orderBy: blockTimestamp, orderDirection: desc, where: {receiver: "${receiver}", participantAddress: "${participantAddress}"}) {
+                encryptedTenderId
+                encryptedKey
+                iv
+                cid
+            }
+        }
+    `
+}
+
+
+
+
+const createTenderMetadata = (tenderId: string) => {
     return `
       query Subgraphs {
         tenderMetadataAddeds(first: 1, orderBy: blockTimestamp, orderDirection: desc, where: {tenderId: "${tenderId}"}) {

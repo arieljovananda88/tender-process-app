@@ -3,7 +3,7 @@ import { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FileText, Download, Upload, X, Plus, File, FileImage, Loader2 } from "lucide-react"
-import { downloadFile, downloadEncryptedFileWithDialog, formatDate } from "@/lib/utils"
+import { downloadFile, downloadEncryptedFileWithDialog, formatDate, shortenAddress } from "@/lib/utils"
 import { useAccount } from "wagmi"
 import { useParams } from "react-router-dom"
 import { toast } from "react-toastify"
@@ -167,10 +167,6 @@ export function DocumentList({
               Add File
             </Button>
           )}
-           {/* <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)} className="h-8">
-              <Plus className="h-4 w-4 mr-1" />
-              Add File
-            </Button> */}
         </div>
 
         {documents.length === 0 ? (
@@ -191,7 +187,7 @@ export function DocumentList({
                           Uploaded at {isInfoDocument(doc) ? 'N/A' : formatDate(doc.submissionDate.toString())}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          CID: {doc.documentCid}
+                          CID: {shortenAddress(doc.documentCid)}
                         </p>
                       </div>
                     </div>
