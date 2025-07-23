@@ -453,8 +453,6 @@ const createParticipantTenderMetadata = (receiver: string, participantAddress: s
 }
 
 
-
-
 const createTenderMetadata = (tenderId: string) => {
     return `
       query Subgraphs {

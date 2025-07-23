@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Calendar, User, Clock, ArrowLeft, Trophy } from "lucide-react"
+import { Calendar, User, Clock, ArrowLeft, Trophy, Eye } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,13 +16,124 @@ import { Document, ParticipantTenderMetadata, Tender, TenderMetadata } from "@/l
 import { formatDate, calculateTimeRemaining, showPassphraseDialog, decryptParticipantTenderMetadataKey, fetchAndDecryptMetadata } from "@/lib/utils"
 import { useAccount } from "wagmi";
 import { useTenderManager } from '@/hooks/useContracts';
-import { getDocumentStoreContract, getTenderManagerContract } from "@/lib/contracts"
+import { getDocumentStoreContract, getPublicKeyStorageContract, getTenderManagerContract } from "@/lib/contracts"
 import { addParticipantTenderMetadata, addTenderMetadata } from "@/lib/api_contract"
 import { toast } from "react-toastify"
+
+// Third Party List Component
+function ThirdPartyList({ tenderId }: { tenderId: string }) {
+  const [thirdParties, setThirdParties] = useState<string[]>([]);
+  const [thirdPartyNames, setThirdPartyNames] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const getThirdPartyNames = async (address: string[]) => {
+      const contract = await getPublicKeyStorageContract();
+      const thirdPartyNames = await Promise.all(address.map(async (address) => {
+        const thirdPartyName = await contract.getName(address);
+        return thirdPartyName;
+      }));
+      return thirdPartyNames;
+    }
+
+    const loadThirdParties = async () => {
+      try {
+        // Check cache first
+        const cacheKey = `thirdParties_${tenderId}`;
+        const cachedData = localStorage.getItem(cacheKey);
+        
+        if (cachedData) {
+          const { addresses, names, timestamp } = JSON.parse(cachedData);
+          const cacheAge = Date.now() - timestamp;
+          const cacheExpiry = 5 * 60 * 1000; // 5 minutes
+          
+          if (cacheAge < cacheExpiry) {
+            console.log("Using cached third party data");
+            setThirdParties(addresses);
+            setThirdPartyNames(names);
+            setLoading(false);
+            return;
+          } else {
+            console.log("Cache expired, fetching fresh data");
+            localStorage.removeItem(cacheKey);
+          }
+        }
+
+        // Fetch fresh data
+        const contract = await getTenderManagerContract();
+        const thirdPartyAddresses = await contract.getThirdPartyParticipantsArray(tenderId);
+        const thirdPartyNames = await getThirdPartyNames(thirdPartyAddresses);
+        
+        setThirdParties(thirdPartyAddresses);
+        setThirdPartyNames(thirdPartyNames);
+        
+        // Cache the data
+        const cacheData = {
+          addresses: thirdPartyAddresses,
+          names: thirdPartyNames,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        console.log("Cached third party data for tender:", tenderId);
+        
+      } catch (error) {
+        console.error("Error loading third parties:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadThirdParties();
+  }, [tenderId]);
+
+  if (loading) {
+    return <div className="text-center py-4">Loading third parties...</div>;
+  }
+
+  if (thirdParties.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <p>No third party participants have been added to this tender.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2">
+        {thirdParties.map((address, index) => (
+          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                <User className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">{thirdPartyNames[index]}</p>
+                <p className="text-xs text-muted-foreground font-mono" title={address}>
+                  {address}
+                </p>
+              </div>
+            </div>
+            <Badge variant="secondary" className="text-xs">
+              Third Party
+            </Badge>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function TenderDetailPage() {
   const { id } = useParams()
   const { address } = useAccount();
+  
+  // Function to clear third party cache for this tender
+  const clearThirdPartyCache = () => {
+    const cacheKey = `thirdParties_${id}`;
+    localStorage.removeItem(cacheKey);
+    console.log("Cleared third party cache for tender:", id);
+  };
   const [tender, setTender] = useState<Tender | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +152,7 @@ export default function TenderDetailPage() {
   const [participantMetadata, setParticipantMetadata] = useState<ParticipantTenderMetadata | null>(null);
   const [showMetadataDialog, setShowMetadataDialog] = useState(false);
   const [showParticipantMetadataDialog, setShowParticipantMetadataDialog] = useState(false);
+  const [showThirdPartyModal, setShowThirdPartyModal] = useState(false);
   const [metadataForm, setMetadataForm] = useState<TenderMetadata>({
     name: "",
     department: "",
@@ -90,6 +202,10 @@ export default function TenderDetailPage() {
         return [];
       }
       setParticipantLoading(true);
+
+      const user = localStorage.getItem("user")
+      const userData = user ? JSON.parse(user) : null
+
       const contract = await getTenderManagerContract();
       const participants = await contract.getParticipants(id as string);
       if (participants.length > 0) {
@@ -99,12 +215,13 @@ export default function TenderDetailPage() {
         }));
         setParticipantLoading(false);
         setParticipants(participantsList);
+
+        setIsRegistered(participants.has(address?.toLowerCase() as string));  
+
         return
       }
   
       const result = await parseParticipants(address as string, passphrase, id as string);
-      const user = localStorage.getItem("user")
-      const userData = user ? JSON.parse(user) : null
 
       if (result) {
         if (userData.role === "participant") {
@@ -296,9 +413,18 @@ export default function TenderDetailPage() {
             </Badge>
           </div>
 
-          <div className="flex items-center text-sm text-muted-foreground">
-            <User className="mr-1 h-4 w-4" />
-            <span title={tender.owner}>Owner: {isOwner ? "You" : tender.owner}</span>
+          <div className="flex items-center text-sm text-muted-foreground justify-between">
+            <div className="flex items-center">
+              <User className="mr-1 h-4 w-4" />
+              <span title={tender.owner}>Owner: {isOwner ? "You" : tender.owner}</span>
+            </div>
+            <button
+              onClick={() => setShowThirdPartyModal(true)}
+              className="ml-2 p-1 hover:bg-gray-100 rounded-md transition-colors group relative"
+              title="View Third Parties"
+            >
+              <Eye className="h-4 w-4 text-gray-500 group-hover:text-gray-700" />
+            </button>
           </div>
 
           <div className="flex items-center justify-between">
@@ -813,6 +939,36 @@ export default function TenderDetailPage() {
               Submit
             </button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+            {/* Third Party Modal */}
+      <Dialog open={showThirdPartyModal} onOpenChange={setShowThirdPartyModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <div className="flex justify-between items-center">
+              <div>
+                <DialogTitle>Third Party Participants</DialogTitle>
+                <DialogDescription>
+                  View all third party participants who have access to this tender.
+                </DialogDescription>
+              </div>
+              <button
+                onClick={clearThirdPartyCache}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                title="Refresh data"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+          </DialogHeader>
+          
+          <div className="space-y-4 overflow-y-auto flex-1">
+            <ThirdPartyList tenderId={id as string} />
+          </div>
+          
         </DialogContent>
       </Dialog>
     </div>
