@@ -11,14 +11,18 @@ interface ParticipantsListProps {
   participants: Participant[]
   winnerId: string | null
   tenderId: string
+  userRole?: string
 }
 
-export function ParticipantsList({ forPending = false, participants, winnerId, tenderId }: ParticipantsListProps) {
+export function ParticipantsList({ forPending = false, participants, winnerId, tenderId, userRole }: ParticipantsListProps) {
   const navigate = useNavigate()
 
   const handleViewSubmissions = (participantAddress: string) => {
     navigate(`/tenders/${tenderId}/submissions/${participantAddress}`)
   }
+
+  // Check if user can view submissions (only third_party or organizer)
+  const canViewSubmissions = userRole === "third_party" || userRole === "organizer"
 
   return (
     <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -49,16 +53,18 @@ export function ParticipantsList({ forPending = false, participants, winnerId, t
                     </div>
                   </div>
 
-                  <div className="flex justify-end">
-                    <Button 
-                      variant="default" 
-                      size="sm" 
-                      className="h-8 bg-blue-600 hover:bg-blue-700"
-                      onClick={() => handleViewSubmissions(participant.address)}
-                    >
-                      View Submissions
-                    </Button>
-                  </div>
+                  {canViewSubmissions && (
+                    <div className="flex justify-end">
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        className="h-8 bg-blue-600 hover:bg-blue-700"
+                        onClick={() => handleViewSubmissions(participant.address)}
+                      >
+                        View Submissions
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

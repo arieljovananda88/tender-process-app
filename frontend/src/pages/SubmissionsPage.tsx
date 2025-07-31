@@ -27,7 +27,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { getTenderManagerContract } from "@/lib/contracts"
+import { getPublicKeyStorageContract, getTenderManagerContract } from "@/lib/contracts"
 
 interface Participant {
   address: string;
@@ -116,12 +116,15 @@ export default function ParticipantSubmissionsPage() {
         const winnerAddress = await getWinner(tenderId);
         setIsWinner(winnerAddress.toLowerCase() === participantAddress.toLowerCase())
         
-        const participant = JSON.parse(localStorage.getItem("user") || "{}");
+        const contract = await getPublicKeyStorageContract();
+
+        const email = await contract.getEmail(participantAddress);
+        const name = await contract.getName(participantAddress);
   
         setParticipant({
           address: participantAddress,
-          name: participant.name,
-          email: participant.email
+          name: name,
+          email: email
         });
         // Fetch tender details
         const tenderData = await getTenderById(tenderId);

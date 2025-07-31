@@ -339,9 +339,9 @@ export default function AccessRequestsPage() {
             </span>
           </div>
           <div className="flex items-center text-sm">
-            <span className="font-medium">Receiver:</span>
-            <span className="ml-2 font-mono" title={request.receiver}>
-              {shortenAddress(request.receiver)}
+            <span className="font-medium">Requester:</span>
+            <span className="ml-2 font-mono" title={request.requester}>
+              {shortenAddress(request.requester)}
             </span>
           </div>
         </div>

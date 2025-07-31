@@ -213,11 +213,13 @@ export default function TenderDetailPage() {
         setParticipantLoading(false);
         setParticipants(participantsList);
 
-        setIsRegistered(participants.has(address?.toLowerCase() as string));  
+        setIsRegistered(
+          participants.some((p: any) => p.participantAddress.toLowerCase() === address?.toLowerCase())
+        );
 
         return
       }
-  
+      
       const result = await parseParticipants(address as string, passphrase, id as string);
 
       if (result) {
@@ -548,6 +550,7 @@ export default function TenderDetailPage() {
                   participants={participants}
                   winnerId={winnerAddress}
                   tenderId={id as string}
+                  userRole={userRole}
                 />
               )}
             </div>
@@ -703,6 +706,7 @@ export default function TenderDetailPage() {
                     participants={participants}
                     winnerId={winnerAddress}
                     tenderId={id as string}
+                    userRole={userRole}
                   />
                   </>
                 )}

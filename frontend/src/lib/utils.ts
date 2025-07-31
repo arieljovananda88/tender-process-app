@@ -328,11 +328,7 @@ export async function downloadEncryptedFile(address: string, doc: Document, pass
 
     let blob;
 
-    if (doc.documentFormat) {
-      blob = new Blob([decryptedBytes], { type: getMimeType(doc.documentFormat) });
-    } else {
-      blob = new Blob([decryptedBytes], { type: "application/octet-stream" });
-    }
+    blob = new Blob([decryptedBytes], { type: "application/octet-stream" })
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
   } catch (error) {
