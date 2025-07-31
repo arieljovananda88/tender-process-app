@@ -184,7 +184,6 @@ export default function AccessRequestsPage() {
   }
 
   const handleDownload = async (request: AccessRequest) => {
-    console.log(request)
     const doc = {
       documentCid: request.cid,
       documentName: request.documentName,

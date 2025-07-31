@@ -131,7 +131,6 @@ export default function ParticipantSubmissionsPage() {
         const loadParticipantMetadata = async () => {
           try {
             const response = await getParticipantTenderMetadata(address as string, participantAddress);
-            console.log("Participant metadata response:", response);
             
             if (response && response.length > 0) {
               const passphrase = await showPassphraseDialog();

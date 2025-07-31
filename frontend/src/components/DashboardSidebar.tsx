@@ -93,13 +93,11 @@ export function DashboardSidebar() {
         localStorage.removeItem('tender_app_passphrase');
         localStorage.removeItem('user');
         localStorage.setItem('tender_app_address', address);
-        console.log('Address changed, cleared session data');
         navigate('/auth');
       } else if (address && user.address && user.address !== address) {
         // User object address doesn't match current address
         localStorage.removeItem('tender_app_passphrase');
         localStorage.removeItem('user');
-        console.log('User address mismatch, logging out');
         navigate('/auth');
       } else if (address && !storedAddress) {
         // First time connecting, store the address

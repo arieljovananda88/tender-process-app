@@ -445,7 +445,6 @@ export function showPassphraseDialog(): Promise<string | null> {
 export async function downloadEncryptedFileWithDialog(address: string, doc: Document) {
   const passphrase = await showPassphraseDialog()
   if (passphrase) {
-    console.log(doc)
     const success = await downloadEncryptedFile(address, doc, passphrase)
     if (!success) {
       return false;
@@ -730,8 +729,6 @@ export async function fetchAndDecryptMetadata(cid: string, symmetricKey: string,
     // Decrypt the metadata field
     const decryptedMetadataString = await decryptWithSymmetricKey(metadataObject.metadata, symmetricKey, iv);
     const decryptedMetadata = JSON.parse(decryptedMetadataString);
-
-    console.log(decryptedMetadata)
     
     return decryptedMetadata;
   } catch (error) {

@@ -48,13 +48,11 @@ function ThirdPartyList({ tenderId }: { tenderId: string }) {
           const cacheExpiry = 5 * 60 * 1000; // 5 minutes
           
           if (cacheAge < cacheExpiry) {
-            console.log("Using cached third party data");
             setThirdParties(addresses);
             setThirdPartyNames(names);
             setLoading(false);
             return;
           } else {
-            console.log("Cache expired, fetching fresh data");
             localStorage.removeItem(cacheKey);
           }
         }
@@ -74,7 +72,6 @@ function ThirdPartyList({ tenderId }: { tenderId: string }) {
           timestamp: Date.now()
         };
         localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-        console.log("Cached third party data for tender:", tenderId);
         
       } catch (error) {
         console.error("Error loading third parties:", error);
@@ -132,7 +129,6 @@ export default function TenderDetailPage() {
   const clearThirdPartyCache = () => {
     const cacheKey = `thirdParties_${id}`;
     localStorage.removeItem(cacheKey);
-    console.log("Cleared third party cache for tender:", id);
   };
   const [tender, setTender] = useState<Tender | null>(null)
   const [loading, setLoading] = useState(true)
@@ -208,6 +204,7 @@ export default function TenderDetailPage() {
 
       const contract = await getTenderManagerContract();
       const participants = await contract.getParticipants(id as string);
+
       if (participants.length > 0) {
         const participantsList = participants.map((participant: any) => ({
           address: participant.participantAddress,
@@ -244,6 +241,12 @@ export default function TenderDetailPage() {
     const checkThirdParty = async () => {
       const contract = await getTenderManagerContract();
       const isThirdParty = await contract.isThirdPartyParticipant(id as string, address as string);
+      const participants = await contract.getParticipants(id as string);
+
+      if (participants.length > 0) {
+        setIsThirdParty(true);
+        return
+      }
       setIsThirdParty(isThirdParty);
     }
 
@@ -305,7 +308,6 @@ export default function TenderDetailPage() {
 
   const handleSubmitMetadata = async () => {
     try {
-      console.log("Submitting metadata for tender:", id, metadataForm);
 
       const res = await addTenderMetadata(id as string, metadataForm);
       
@@ -347,7 +349,6 @@ export default function TenderDetailPage() {
 
   const handleSubmitParticipantMetadata = async () => {
     try {
-      console.log("Submitting metadata for tender:", id, participantMetadataForm);
 
       const res = await addParticipantTenderMetadata(id as string, participantMetadataForm, address as string, tender.owner as string);
       
